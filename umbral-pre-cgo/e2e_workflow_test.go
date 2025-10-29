@@ -225,9 +225,24 @@ func TestE2EWorkflowOwnerDecryptData(t *testing.T) {
 		t.Fatalf("Failed to encrypt data: %v", err)
 	}
 
-	// Step 3: Decrypt data
-	t.Log("Step 3: Decrypting data...")
-	decrypted, err := DecryptDataWithOwnerKey(ownerPrivateKeyBytes, capsuleBytes, ciphertext)
+	// Step 3: Get seed key by owner
+	t.Log("Step 3: Getting seed key by owner...")
+	seedKeyBytes, err := GetSeedKeyByOwner(ownerPrivateKeyBytes, capsuleBytes)
+	if err != nil {
+		t.Fatalf("Failed to get seed key by owner: %v", err)
+	}
+
+	// Step 4: Create symmetric decryptor with seed key
+	t.Log("Step 4: Creating symmetric decryptor with seed key...")
+	decryptor, err := CreateSymmetricDecryptor(seedKeyBytes)
+	if err != nil {
+		t.Fatalf("Failed to create symmetric decryptor: %v", err)
+	}
+	defer decryptor.Free()
+
+	// Step 5: Decrypt data
+	t.Log("Step 5: Decrypting data...")
+	decrypted, err := decryptor.DecryptWithCapsule(ciphertext, capsuleBytes)
 	if err != nil {
 		t.Fatalf("Failed to decrypt data: %v", err)
 	}
