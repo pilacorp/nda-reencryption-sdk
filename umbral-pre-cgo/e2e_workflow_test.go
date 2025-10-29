@@ -25,7 +25,7 @@ func TestE2EWorkflow(t *testing.T) {
 	t.Log("Step 2: Encrypting data...")
 	plaintext := []byte("Hello, Umbral Proxy Re-encryption!")
 
-	capsuleBytes, ciphertext, err := EncrypData(delegatingPublicKeyBytes, plaintext)
+	capsuleBytes, ciphertext, err := EncryptData(delegatingPublicKeyBytes, plaintext)
 	if err != nil {
 		t.Fatalf("Failed to encrypt data: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestE2EWorkflowWithValidation(t *testing.T) {
 	// Step 2: Encrypt data
 	t.Log("Step 2: Encrypting data...")
 	plaintext := []byte("Umbral Proxy Re-encryption with validation!")
-	capsuleBytes, ciphertext, err := EncrypData(delegatingPublicKeyBytes, plaintext)
+	capsuleBytes, ciphertext, err := EncryptData(delegatingPublicKeyBytes, plaintext)
 	if err != nil {
 		t.Fatalf("Failed to encrypt data: %v", err)
 	}
@@ -154,7 +154,7 @@ func Test2E2WorkflowWithSeedKey(t *testing.T) {
 	// Step 2: Alice encrypts data
 	t.Log("Step 2: Alice encrypting data...")
 	plaintext := []byte("Umbral Proxy Re-encryption with seed key!")
-	capsuleBytes, ciphertext, err := EncrypData(alicePublicKeyBytes, plaintext)
+	capsuleBytes, ciphertext, err := EncryptData(alicePublicKeyBytes, plaintext)
 	if err != nil {
 		t.Fatalf("Failed to encrypt data: %v", err)
 	}
@@ -205,5 +205,37 @@ func Test2E2WorkflowWithSeedKey(t *testing.T) {
 		t.Errorf("Decryption failed: expected %s, got %s", string(plaintext), string(decrypted))
 	} else {
 		t.Log("E2E workflow with seed key completed successfully!")
+	}
+}
+
+// func TestE2EWorkflowOwnerDecryptData tests the complete Umbral workflow using owner decrypt data
+func TestE2EWorkflowOwnerDecryptData(t *testing.T) {
+	// Step 1: Generate Ethereum key pairs
+	t.Log("Step 1: Generating Ethereum key pairs...")
+	ownerPrivateKeyBytes, ownerPublicKeyBytes, err := GenerateEthereumKeyPair()
+	if err != nil {
+		t.Fatalf("Failed to generate owner key pair: %v", err)
+	}
+
+	// Step 2: Encrypt data
+	t.Log("Step 2: Encrypting data...")
+	plaintext := []byte("Umbral Proxy Re-encryption with owner decrypt data!")
+	capsuleBytes, ciphertext, err := EncryptData(ownerPublicKeyBytes, plaintext)
+	if err != nil {
+		t.Fatalf("Failed to encrypt data: %v", err)
+	}
+
+	// Step 3: Decrypt data
+	t.Log("Step 3: Decrypting data...")
+	decrypted, err := DecryptDataWithOwnerKey(ownerPrivateKeyBytes, capsuleBytes, ciphertext)
+	if err != nil {
+		t.Fatalf("Failed to decrypt data: %v", err)
+	}
+
+	// Verify
+	if string(decrypted) != string(plaintext) {
+		t.Errorf("Decryption failed: expected %s, got %s", string(plaintext), string(decrypted))
+	} else {
+		t.Log("E2E workflow with owner decrypt data completed successfully!")
 	}
 }
