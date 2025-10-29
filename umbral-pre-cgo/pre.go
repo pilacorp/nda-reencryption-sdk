@@ -1,13 +1,11 @@
 package umbralprecgo
 
 import (
-	"fmt"
-
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // EncryptWithEthereumKeys encrypts data using Ethereum public key bytes
-func EncrypData(publicKeyBytes []byte, plaintext []byte) ([]byte, []byte, error) {
+func EncryptData(publicKeyBytes []byte, plaintext []byte) ([]byte, []byte, error) {
 	// Convert Ethereum public key bytes to Umbral public key
 	umbralPK, err := GeneratePublicKeyFromBytes(publicKeyBytes)
 	if err != nil {
@@ -32,7 +30,7 @@ func EncrypData(publicKeyBytes []byte, plaintext []byte) ([]byte, []byte, error)
 }
 
 // DecryptDataWithOwner decrypts data using Ethereum private key bytes
-func DecryptDataWithOwnerKey(privateKeyBytes []byte, publicKeyBytes []byte, capsuleBytes []byte, ciphertext []byte) ([]byte, error) {
+func DecryptDataWithOwnerKey(privateKeyBytes []byte, capsuleBytes []byte, ciphertext []byte) ([]byte, error) {
 	// Convert Ethereum private key bytes to Umbral secret key
 	umbralSK, err := GenerateSecretKeyFromBytes(privateKeyBytes)
 	if err != nil {
@@ -40,16 +38,20 @@ func DecryptDataWithOwnerKey(privateKeyBytes []byte, publicKeyBytes []byte, caps
 	}
 	defer umbralSK.Free()
 
-	// Convert Ethereum public key bytes to Umbral public key
-	umbralPK, err := GeneratePublicKeyFromBytes(publicKeyBytes)
+	// Convert capsule bytes back to Capsule object
+	capsule, err := capsuleFromBytes(capsuleBytes)
 	if err != nil {
 		return nil, err
 	}
-	defer umbralPK.Free()
+	defer capsule.Free()
 
-	// For now, we'll skip capsule deserialization and use a placeholder
-	// In real implementation, you would need to implement CapsuleFromBytes
-	return nil, fmt.Errorf("DecryptWithEthereumKeys not fully implemented - needs capsule deserialization")
+	// Decrypt using the original secret key
+	decrypted, err := umbralDecryptOriginal(umbralSK, capsule, ciphertext)
+	if err != nil {
+		return nil, err
+	}
+
+	return decrypted, nil
 }
 
 // CreateRekey creates rekey fragments with threshold 1 using Ethereum key bytes
