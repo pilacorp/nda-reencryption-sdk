@@ -33,7 +33,7 @@ func main() {
 	plaintext := []byte("Hello, Umbral Proxy Re-encryption!")
 	fmt.Printf("   Plaintext: %s\n", string(plaintext))
 
-	capsuleBytes, ciphertext, err := umbralprecgo.EncrypData(delegatingPublicKey, plaintext)
+	capsuleBytes, ciphertext, err := umbralprecgo.EncryptData(delegatingPublicKey, plaintext)
 	if err != nil {
 		log.Fatal("Failed to encrypt data:", err)
 	}

@@ -162,6 +162,13 @@ int32_t umbral_decrypt_reencrypted(
 
 
 // Capsule seed key extraction
+int32_t umbral_capsule_open_original(
+    SecretKeyPtr delegating_sk,
+    CapsulePtr capsule,
+    ByteBuffer* key_seed_out,
+    UmbralError* error_out
+);
+
 int32_t umbral_capsule_open_reencrypted(
     SecretKeyPtr receiving_sk,
     PublicKeyPtr delegating_pk,
@@ -182,6 +189,16 @@ int32_t umbral_dem_decrypt(
     const uint8_t* authenticated_data,
     size_t authenticated_data_len,
     ByteBuffer* plaintext_out,
+    UmbralError* error_out
+);
+
+int32_t umbral_dem_encrypt(
+    const uint8_t* key_seed,
+    size_t key_seed_len,
+    const uint8_t* plaintext,
+    size_t plaintext_len,
+    CapsulePtr capsule,
+    ByteBuffer* ciphertext_out,
     UmbralError* error_out
 );
 
@@ -714,8 +731,87 @@ func capsuleFragFromBytes(cfragBytes []byte) (*VerifiedCapsuleFrag, error) {
 }
 
 // ============================================================================
+// Encryptor helper functions
+// ============================================================================
+
+func createCapsuleAndKeySeed(pk *PublicKey) (*Capsule, []byte, error) {
+	var capsuleOut C.CapsulePtr
+	var keySeedOut C.ByteBuffer
+	var errorOut C.UmbralError
+
+	result := C.umbral_capsule_from_public_key(
+		pk.ptr,
+		&capsuleOut,
+		&keySeedOut,
+		&errorOut,
+	)
+
+	if result == 0 {
+		return nil, nil, fmt.Errorf("failed to create capsule and key seed: %s", C.GoString(errorOut.message))
+	}
+
+	capsule := &Capsule{ptr: capsuleOut}
+	runtime.SetFinalizer(capsule, (*Capsule).Free)
+
+	defer C.free(unsafe.Pointer(keySeedOut.data))
+	keySeed := C.GoBytes(unsafe.Pointer(keySeedOut.data), C.int(keySeedOut.len))
+
+	return capsule, keySeed, nil
+}
+
+func encryptWithKeySeed(keySeed []byte, plaintext []byte, capsule *Capsule) ([]byte, error) {
+	var ciphertextOut C.ByteBuffer
+	var errorOut C.UmbralError
+
+	plaintextPtr := (*C.uint8_t)(C.CBytes(plaintext))
+	defer C.free(unsafe.Pointer(plaintextPtr))
+
+	keySeedPtr := (*C.uint8_t)(C.CBytes(keySeed))
+	defer C.free(unsafe.Pointer(keySeedPtr))
+
+	result := C.umbral_dem_encrypt(
+		keySeedPtr,
+		C.size_t(len(keySeed)),
+		plaintextPtr,
+		C.size_t(len(plaintext)),
+		capsule.ptr,
+		&ciphertextOut,
+		&errorOut,
+	)
+
+	if result == 0 {
+		return nil, fmt.Errorf("failed to encrypt with key seed: %s", C.GoString(errorOut.message))
+	}
+
+	defer C.free(unsafe.Pointer(ciphertextOut.data))
+	return C.GoBytes(unsafe.Pointer(ciphertextOut.data), C.int(ciphertextOut.len)), nil
+}
+
+// ============================================================================
 // Seed key extraction helper
 // ============================================================================
+
+func getSeedKeyFromCapsuleOriginal(
+	delegatingSK *SecretKey,
+	capsule *Capsule,
+) ([]byte, error) {
+	var keySeedOut C.ByteBuffer
+	var errorOut C.UmbralError
+
+	result := C.umbral_capsule_open_original(
+		delegatingSK.ptr,
+		capsule.ptr,
+		&keySeedOut,
+		&errorOut,
+	)
+
+	if result == 0 {
+		return nil, fmt.Errorf("failed to extract seed key from capsule: %s", C.GoString(errorOut.message))
+	}
+
+	defer C.free(unsafe.Pointer(keySeedOut.data))
+	return C.GoBytes(unsafe.Pointer(keySeedOut.data), C.int(keySeedOut.len)), nil
+}
 
 func getSeedKeyFromCapsule(
 	receivingSK *SecretKey,

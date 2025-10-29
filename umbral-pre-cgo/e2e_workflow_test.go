@@ -25,7 +25,7 @@ func TestE2EWorkflow(t *testing.T) {
 	t.Log("Step 2: Encrypting data...")
 	plaintext := []byte("Hello, Umbral Proxy Re-encryption!")
 
-	capsuleBytes, ciphertext, err := EncrypData(delegatingPublicKeyBytes, plaintext)
+	capsuleBytes, ciphertext, err := EncryptData(delegatingPublicKeyBytes, plaintext)
 	if err != nil {
 		t.Fatalf("Failed to encrypt data: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestE2EWorkflowWithValidation(t *testing.T) {
 	// Step 2: Encrypt data
 	t.Log("Step 2: Encrypting data...")
 	plaintext := []byte("Umbral Proxy Re-encryption with validation!")
-	capsuleBytes, ciphertext, err := EncrypData(delegatingPublicKeyBytes, plaintext)
+	capsuleBytes, ciphertext, err := EncryptData(delegatingPublicKeyBytes, plaintext)
 	if err != nil {
 		t.Fatalf("Failed to encrypt data: %v", err)
 	}
@@ -154,7 +154,7 @@ func Test2E2WorkflowWithSeedKey(t *testing.T) {
 	// Step 2: Alice encrypts data
 	t.Log("Step 2: Alice encrypting data...")
 	plaintext := []byte("Umbral Proxy Re-encryption with seed key!")
-	capsuleBytes, ciphertext, err := EncrypData(alicePublicKeyBytes, plaintext)
+	capsuleBytes, ciphertext, err := EncryptData(alicePublicKeyBytes, plaintext)
 	if err != nil {
 		t.Fatalf("Failed to encrypt data: %v", err)
 	}
@@ -205,5 +205,120 @@ func Test2E2WorkflowWithSeedKey(t *testing.T) {
 		t.Errorf("Decryption failed: expected %s, got %s", string(plaintext), string(decrypted))
 	} else {
 		t.Log("E2E workflow with seed key completed successfully!")
+	}
+}
+
+// func TestE2EWorkflowOwnerDecryptData tests the complete Umbral workflow using owner decrypt data
+func TestE2EWorkflowOwnerDecryptData(t *testing.T) {
+	// Step 1: Generate Ethereum key pairs
+	t.Log("Step 1: Generating Ethereum key pairs...")
+	ownerPrivateKeyBytes, ownerPublicKeyBytes, err := GenerateEthereumKeyPair()
+	if err != nil {
+		t.Fatalf("Failed to generate owner key pair: %v", err)
+	}
+
+	// Step 2: Encrypt data
+	t.Log("Step 2: Encrypting data...")
+	plaintext := []byte("Umbral Proxy Re-encryption with owner decrypt data!")
+	capsuleBytes, ciphertext, err := EncryptData(ownerPublicKeyBytes, plaintext)
+	if err != nil {
+		t.Fatalf("Failed to encrypt data: %v", err)
+	}
+
+	// Step 3: Decrypt data
+	t.Log("Step 3: Decrypting data...")
+	decrypted, err := DecryptDataWithOwnerKey(ownerPrivateKeyBytes, capsuleBytes, ciphertext)
+	if err != nil {
+		t.Fatalf("Failed to decrypt data: %v", err)
+	}
+
+	// Verify
+	if string(decrypted) != string(plaintext) {
+		t.Errorf("Decryption failed: expected %s, got %s", string(plaintext), string(decrypted))
+	} else {
+		t.Log("E2E workflow with owner decrypt data completed successfully!")
+	}
+}
+
+func TestE2EStreamWorkflow(t *testing.T) {
+	// Step 1: Generate Ethereum key pairs
+	t.Log("Step 1: Generating Ethereum key pairs...")
+	ownerPrivateKeyBytes, ownerPublicKeyBytes, err := GenerateEthereumKeyPair()
+	if err != nil {
+		t.Fatalf("Failed to generate owner key pair: %v", err)
+	}
+
+	viewerPrivateKeyBytes, viewerPublicKeyBytes, err := GenerateEthereumKeyPair()
+	if err != nil {
+		t.Fatalf("Failed to generate viewer key pair: %v", err)
+	}
+
+	// Step 2: Create encryptor
+	t.Log("Step 2: Creating encryptor...")
+	encryptor, err := NewEncryptor(ownerPublicKeyBytes)
+	if err != nil {
+		t.Fatalf("Failed to create encryptor: %v", err)
+	}
+
+	// Step 3: Encrypt data
+	t.Log("Step 3: Encrypting data...")
+	plaintext := []byte("Umbral Proxy Re-encryption with stream workflow!")
+	ciphertext, err := encryptor.Encrypt(plaintext)
+	if err != nil {
+		t.Fatalf("Failed to encrypt data: %v", err)
+	}
+
+	// get capsule bytes
+	capsuleBytes, err := encryptor.GetCapsule()
+	if err != nil {
+		t.Fatalf("Failed to get capsule bytes: %v", err)
+	}
+
+	// Step 4: Create rekey
+	t.Log("Step 4: Creating rekey...")
+	kfragBytes, err := CreateRekey(ownerPrivateKeyBytes, viewerPublicKeyBytes)
+	if err != nil {
+		t.Fatalf("Failed to create rekey: %v", err)
+	}
+
+	// Step 5: Re-encrypt capsule
+	t.Log("Step 5: Re-encrypting capsule...")
+	cfragBytes, err := ReencryptCapsule(
+		capsuleBytes,
+		kfragBytes,
+		ownerPublicKeyBytes,
+		ownerPublicKeyBytes,
+		viewerPublicKeyBytes,
+	)
+	if err != nil {
+		t.Fatalf("Failed to re-encrypt capsule: %v", err)
+	}
+
+	// Step 6: Viewer get seed key
+	t.Log("Step 6: Viewer getting seed key...")
+	seedKeyBytes, capsuleBytesSimple, err := GetSeedKey(viewerPrivateKeyBytes, ownerPublicKeyBytes, capsuleBytes, cfragBytes)
+	if err != nil {
+		t.Fatalf("Failed to get seed key: %v", err)
+	}
+
+	// Step 7: Viewer decrypt data
+	t.Log("Step 7: Viewer decrypting data...")
+	decryptor, err := CreateSymmetricDecryptor(seedKeyBytes)
+	if err != nil {
+		t.Fatalf("Failed to create symmetric decryptor: %v", err)
+	}
+	defer decryptor.Free()
+
+	// decrypt data
+	decrypted, err := decryptor.DecryptWithCapsule(ciphertext, capsuleBytesSimple)
+	if err != nil {
+		t.Fatalf("Failed to decrypt data: %v", err)
+	}
+
+	// Verify
+	if string(decrypted) != string(plaintext) {
+		t.Errorf("Decryption failed: expected %s, got %s", string(plaintext), string(decrypted))
+	} else {
+		t.Log("E2E workflow with stream workflow completed successfully!")
 	}
 }

@@ -1,13 +1,74 @@
 package umbralprecgo
 
 import (
-	"fmt"
-
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// Encryptor allows multiple encryptions with the same capsule
+type Encryptor struct {
+	publicKey *PublicKey
+	capsule   *Capsule
+	keySeed   []byte
+}
+
+// NewEncryptor creates a new encryptor with the given public key
+func NewEncryptor(publicKeyBytes []byte) (*Encryptor, error) {
+	// Convert Ethereum public key bytes to Umbral public key
+	umbralPK, err := GeneratePublicKeyFromBytes(publicKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create capsule and key seed
+	capsule, keySeed, err := createCapsuleAndKeySeed(umbralPK)
+	if err != nil {
+		umbralPK.Free()
+		return nil, err
+	}
+
+	return &Encryptor{
+		publicKey: umbralPK,
+		capsule:   capsule,
+		keySeed:   keySeed,
+	}, nil
+}
+
+// Encrypt encrypts the given plaintext using the stored capsule and key seed
+func (e *Encryptor) Encrypt(plaintext []byte) ([]byte, error) {
+	// Use the stored key seed to encrypt the plaintext
+	ciphertext, err := encryptWithKeySeed(e.keySeed, plaintext, e.capsule)
+	if err != nil {
+		return nil, err
+	}
+
+	return ciphertext, nil
+}
+
+// GetCapsule returns the capsule bytes
+func (e *Encryptor) GetCapsule() ([]byte, error) {
+	return capsuleToBytes(e.capsule)
+}
+
+// GetKeySeed returns the key seed bytes
+func (e *Encryptor) GetKeySeed() []byte {
+	return e.keySeed
+}
+
+// Free releases resources held by the encryptor
+func (e *Encryptor) Free() {
+	if e.publicKey != nil {
+		e.publicKey.Free()
+		e.publicKey = nil
+	}
+	if e.capsule != nil {
+		e.capsule.Free()
+		e.capsule = nil
+	}
+	e.keySeed = nil
+}
+
 // EncryptWithEthereumKeys encrypts data using Ethereum public key bytes
-func EncrypData(publicKeyBytes []byte, plaintext []byte) ([]byte, []byte, error) {
+func EncryptData(publicKeyBytes []byte, plaintext []byte) ([]byte, []byte, error) {
 	// Convert Ethereum public key bytes to Umbral public key
 	umbralPK, err := GeneratePublicKeyFromBytes(publicKeyBytes)
 	if err != nil {
@@ -32,7 +93,7 @@ func EncrypData(publicKeyBytes []byte, plaintext []byte) ([]byte, []byte, error)
 }
 
 // DecryptDataWithOwner decrypts data using Ethereum private key bytes
-func DecryptDataWithOwnerKey(privateKeyBytes []byte, publicKeyBytes []byte, capsuleBytes []byte, ciphertext []byte) ([]byte, error) {
+func DecryptDataWithOwnerKey(privateKeyBytes []byte, capsuleBytes []byte, ciphertext []byte) ([]byte, error) {
 	// Convert Ethereum private key bytes to Umbral secret key
 	umbralSK, err := GenerateSecretKeyFromBytes(privateKeyBytes)
 	if err != nil {
@@ -40,16 +101,45 @@ func DecryptDataWithOwnerKey(privateKeyBytes []byte, publicKeyBytes []byte, caps
 	}
 	defer umbralSK.Free()
 
-	// Convert Ethereum public key bytes to Umbral public key
-	umbralPK, err := GeneratePublicKeyFromBytes(publicKeyBytes)
+	// Convert capsule bytes back to Capsule object
+	capsule, err := capsuleFromBytes(capsuleBytes)
 	if err != nil {
 		return nil, err
 	}
-	defer umbralPK.Free()
+	defer capsule.Free()
 
-	// For now, we'll skip capsule deserialization and use a placeholder
-	// In real implementation, you would need to implement CapsuleFromBytes
-	return nil, fmt.Errorf("DecryptWithEthereumKeys not fully implemented - needs capsule deserialization")
+	// Decrypt using the original secret key
+	decrypted, err := umbralDecryptOriginal(umbralSK, capsule, ciphertext)
+	if err != nil {
+		return nil, err
+	}
+
+	return decrypted, nil
+}
+
+// GetSeedKeyByOwner extracts the seed key from an original capsule using the owner's private key
+func GetSeedKeyByOwner(privateKeyBytes []byte, capsuleBytes []byte) ([]byte, error) {
+	// Convert Ethereum private key bytes to Umbral secret key
+	umbralSK, err := GenerateSecretKeyFromBytes(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer umbralSK.Free()
+
+	// Convert capsule bytes back to Capsule object
+	capsule, err := capsuleFromBytes(capsuleBytes)
+	if err != nil {
+		return nil, err
+	}
+	defer capsule.Free()
+
+	// Extract the seed key from the capsule using the owner's private key
+	seedKey, err := getSeedKeyFromCapsuleOriginal(umbralSK, capsule)
+	if err != nil {
+		return nil, err
+	}
+
+	return seedKey, nil
 }
 
 // CreateRekey creates rekey fragments with threshold 1 using Ethereum key bytes
