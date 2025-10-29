@@ -1004,7 +1004,7 @@ pub extern "C" fn umbral_dem_encrypt(
                 if !error_out.is_null() {
                     *error_out = UmbralError::success();
                 }
-                0
+                1
             }
             Err(e) => {
                 if !error_out.is_null() {

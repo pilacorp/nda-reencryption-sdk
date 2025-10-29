@@ -746,7 +746,7 @@ func createCapsuleAndKeySeed(pk *PublicKey) (*Capsule, []byte, error) {
 		&errorOut,
 	)
 
-	if result == 0 {
+	if result != 0 {
 		return nil, nil, fmt.Errorf("failed to create capsule and key seed: %s", C.GoString((*C.char)(unsafe.Pointer(errorOut.message))))
 	}
 
