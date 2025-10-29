@@ -4,8 +4,6 @@ go 1.24.0
 
 toolchain go1.24.6
 
-// Version: v0.0.1
-
 require github.com/ethereum/go-ethereum v1.16.5
 
 require (
@@ -14,5 +12,3 @@ require (
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
 )
-
-replace github.com/dinhwe2612/umbral-pre-cgo => /Users/vl-ortho/pila/dinh-umbral/umbral/umbral-pre-cgo

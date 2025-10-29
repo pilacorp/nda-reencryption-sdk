@@ -17,8 +17,6 @@ use core::ptr;
 use core::slice;
 use rand_core::OsRng;
 
-use crate::{StreamDecryptor, StreamEncryptor};
-
 // ============================================================================
 // Error handling
 // ============================================================================
@@ -64,8 +62,6 @@ pub type KeyFragPtr = *mut KeyFrag;
 pub type VerifiedKeyFragPtr = *mut VerifiedKeyFrag;
 pub type CapsuleFragPtr = *mut CapsuleFrag;
 pub type VerifiedCapsuleFragPtr = *mut VerifiedCapsuleFrag;
-pub type StreamEncryptorPtr = *mut StreamEncryptor;
-pub type StreamDecryptorPtr = *mut StreamDecryptor;
 pub type DEMPtr = *mut DEM;
 pub type ReadCallback =
     extern "C" fn(ctx: *mut core::ffi::c_void, buf: *mut u8, buf_len: usize) -> isize;

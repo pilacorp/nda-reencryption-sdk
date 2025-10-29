@@ -132,7 +132,6 @@ mod key_frag;
 mod keys;
 mod params;
 mod pre;
-mod pre_stream;
 mod secret_box;
 mod traits;
 
@@ -152,7 +151,6 @@ pub use pre::{
     decrypt_original, decrypt_reencrypted, encrypt_with_rng, generate_kfrags_with_rng,
     reencrypt_with_rng, ReencryptionError,
 };
-pub use pre_stream::{StreamDecryptor, StreamEncryptor};
 pub use secret_box::SecretBox;
 
 #[cfg(feature = "default-rng")]

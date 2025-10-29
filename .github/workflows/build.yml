@@ -1,9 +1,6 @@
 name: Build Umbral Pre-Go
 
 on:
-  push:
-    branches: [ main ]
-    tags: [ 'v*' ]
   pull_request:
 
 permissions:
@@ -48,49 +45,39 @@ jobs:
       - name: Copy static library for Go (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          # ĐÃ SỬA: Đường dẫn nguồn (SOURCE_PATH) không bao gồm thư mục umbral-pre/
           SOURCE_PATH="target/release/libumbral_pre.a"
           DEST_PATH="umbral-pre-cgo/lib/libumbral_pre-linux-amd64.a"
           
           mkdir -p umbral-pre-cgo/lib
-          # Xóa sạch thư mục lib để loại bỏ symlink và file cũ
           rm -f umbral-pre-cgo/lib/libumbral_pre.*
           
-          # Kiểm tra file nguồn có tồn tại hay không
           if [ ! -f "$SOURCE_PATH" ]; then
-            echo "::error file=build.yml,line=$LINENO::KHÔNG TÌM THẤY file nguồn Rust tại $SOURCE_PATH"
+            echo "::error file=build.yml,line=$LINENO::Rust library not found at $SOURCE_PATH"
             exit 1
           fi
           
-          # Thực hiện COPY bằng đường dẫn cố định
           cp "$SOURCE_PATH" "$DEST_PATH"
-          echo "Đã sao chép thành công file từ $SOURCE_PATH sang $DEST_PATH"
+          echo "Successfully copied library from $SOURCE_PATH to $DEST_PATH"
           
-          # Kiểm tra kết quả COPY
           ls -la umbral-pre-cgo/lib/
 
       - name: Copy static library for Go (macOS)
         if: matrix.os == 'macos-latest'
         run: |
-          # ĐÃ SỬA: Đường dẫn nguồn (SOURCE_PATH) không bao gồm thư mục umbral-pre/
           SOURCE_PATH="target/release/libumbral_pre.a"
           DEST_PATH="umbral-pre-cgo/lib/libumbral_pre-darwin-amd64.a"
           
           mkdir -p umbral-pre-cgo/lib
-          # Xóa sạch thư mục lib để loại bỏ symlink và file cũ
           rm -f umbral-pre-cgo/lib/libumbral_pre.*
           
-          # Kiểm tra file nguồn có tồn tại hay không
           if [ ! -f "$SOURCE_PATH" ]; then
-            echo "::error file=build.yml,line=$LINENO::KHÔNG TÌM THẤY file nguồn Rust tại $SOURCE_PATH"
+            echo "::error file=build.yml,line=$LINENO::Rust library not found at $SOURCE_PATH"
             exit 1
           fi
           
-          # Thực hiện COPY bằng đường dẫn cố định
           cp "$SOURCE_PATH" "$DEST_PATH"
-          echo "Đã sao chép thành công file từ $SOURCE_PATH sang $DEST_PATH"
+          echo "Successfully copied library from $SOURCE_PATH to $DEST_PATH"
           
-          # Kiểm tra kết quả COPY
           ls -la umbral-pre-cgo/lib/
 
       # Windows copy step disabled
@@ -131,7 +118,6 @@ jobs:
   commit-libs:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -147,15 +133,12 @@ jobs:
       - name: Copy static libraries to lib folder
         run: |
           mkdir -p umbral-pre-cgo/lib
-          # Loại bỏ tất cả file cũ (kể cả symlink) trước khi copy
           rm -f umbral-pre-cgo/lib/libumbral_pre.*
           
-          # COPY các file .a có tên nền tảng từ Artifacts (libraries/) sang thư mục đích
           cp libraries/*.a umbral-pre-cgo/lib/ 2>/dev/null || true
           
           echo "Files copied to umbral-pre-cgo/lib/:"
           ls -la umbral-pre-cgo/lib/
-          # Lệnh này sẽ chỉ hiển thị các file nhị phân đã đổi tên (vd: libumbral_pre-linux-amd64.a)
       
       - name: Commit and push libraries
         run: |
@@ -167,5 +150,10 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update cross-platform static libraries [skip ci]"
-            git push
+            # Handle both branch pushes and pull requests
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              git push origin HEAD:${{ github.head_ref }}
+            else
+              git push origin HEAD:${{ github.ref_name }}
+            fi
           fi
