@@ -152,7 +152,7 @@ impl Capsule {
     }
 
     /// Generates a symmetric key and its associated KEM ciphertext, using the given RNG.
-    pub(crate) fn from_public_key(
+    pub fn from_public_key(
         rng: &mut (impl CryptoRng + RngCore),
         delegating_pk: &PublicKey,
     ) -> (Capsule, SecretBox<KeySeed>) {
