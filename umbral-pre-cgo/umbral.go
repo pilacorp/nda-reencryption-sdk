@@ -747,7 +747,7 @@ func createCapsuleAndKeySeed(pk *PublicKey) (*Capsule, []byte, error) {
 	)
 
 	if result == 0 {
-		return nil, nil, fmt.Errorf("failed to create capsule and key seed: %s", C.GoString(errorOut.message))
+		return nil, nil, fmt.Errorf("failed to create capsule and key seed: %s", C.GoString((*C.char)(unsafe.Pointer(errorOut.message))))
 	}
 
 	capsule := &Capsule{ptr: capsuleOut}
@@ -780,7 +780,7 @@ func encryptWithKeySeed(keySeed []byte, plaintext []byte, capsule *Capsule) ([]b
 	)
 
 	if result == 0 {
-		return nil, fmt.Errorf("failed to encrypt with key seed: %s", C.GoString(errorOut.message))
+		return nil, fmt.Errorf("failed to encrypt with key seed: %s", C.GoString((*C.char)(unsafe.Pointer(errorOut.message))))
 	}
 
 	defer C.free(unsafe.Pointer(ciphertextOut.data))
@@ -806,7 +806,7 @@ func getSeedKeyFromCapsuleOriginal(
 	)
 
 	if result == 0 {
-		return nil, fmt.Errorf("failed to extract seed key from capsule: %s", C.GoString(errorOut.message))
+		return nil, fmt.Errorf("failed to extract seed key from capsule: %s", C.GoString((*C.char)(unsafe.Pointer(errorOut.message))))
 	}
 
 	defer C.free(unsafe.Pointer(keySeedOut.data))
