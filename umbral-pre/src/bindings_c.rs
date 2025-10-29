@@ -806,6 +806,35 @@ pub extern "C" fn umbral_cfrag_verify(
 // ============================================================================
 
 #[no_mangle]
+pub extern "C" fn umbral_capsule_open_original(
+    delegating_sk: SecretKeyPtr,
+    capsule: CapsulePtr,
+    key_seed_out: *mut ByteBuffer,
+    error_out: *mut UmbralError,
+) -> i32 {
+    if delegating_sk.is_null() || capsule.is_null() || key_seed_out.is_null() {
+        if !error_out.is_null() {
+            unsafe {
+                *error_out = UmbralError::from_string(-1, "Null pointer provided to umbral_capsule_open_original".into());
+            }
+        }
+        return 0;
+    }
+
+    unsafe {
+        let delegating_sk = &*delegating_sk;
+        let capsule = &*capsule;
+
+        let key_seed = capsule.open_original(delegating_sk);
+        let key_seed_bytes = key_seed.as_secret().as_slice();
+
+        *key_seed_out = ByteBuffer::from_vec(key_seed_bytes.to_vec());
+    }
+
+    1
+}
+
+#[no_mangle]
 pub extern "C" fn umbral_capsule_open_reencrypted(
     receiving_sk: SecretKeyPtr,
     delegating_pk: PublicKeyPtr,
@@ -938,6 +967,51 @@ pub extern "C" fn umbral_dem_free(dem: DEMPtr) {
     if !dem.is_null() {
         unsafe {
             let _ = Box::from_raw(dem);
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn umbral_dem_encrypt(
+    key_seed: *const u8,
+    key_seed_len: usize,
+    plaintext: *const u8,
+    plaintext_len: usize,
+    capsule: CapsulePtr,
+    ciphertext_out: *mut ByteBuffer,
+    error_out: *mut UmbralError,
+) -> i32 {
+    if key_seed.is_null() || plaintext.is_null() || capsule.is_null() || ciphertext_out.is_null() {
+        if !error_out.is_null() {
+            unsafe {
+                *error_out = UmbralError::from_string(-1, "Null pointer passed".into());
+            }
+        }
+        return -1;
+    }
+
+    unsafe {
+        let key_seed_slice = slice::from_raw_parts(key_seed, key_seed_len);
+        let plaintext_slice = slice::from_raw_parts(plaintext, plaintext_len);
+        
+        // Create DEM from key seed
+        let dem = DEM::new(key_seed_slice);
+        
+        // Encrypt using the DEM
+        match dem.encrypt(&mut OsRng, plaintext_slice, &(*capsule).to_bytes_simple()) {
+            Ok(ciphertext) => {
+                *ciphertext_out = ByteBuffer::from_boxed_slice(ciphertext);
+                if !error_out.is_null() {
+                    *error_out = UmbralError::success();
+                }
+                1
+            }
+            Err(e) => {
+                if !error_out.is_null() {
+                    *error_out = UmbralError::from_string(-2, alloc::format!("{:?}", e));
+                }
+                -2
+            }
         }
     }
 }
