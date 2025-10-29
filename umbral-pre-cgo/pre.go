@@ -118,28 +118,34 @@ func DecryptDataWithOwnerKey(privateKeyBytes []byte, capsuleBytes []byte, cipher
 }
 
 // GetSeedKeyByOwner extracts the seed key from an original capsule using the owner's private key
-func GetSeedKeyByOwner(privateKeyBytes []byte, capsuleBytes []byte) ([]byte, error) {
+func GetSeedKeyByOwner(privateKeyBytes []byte, capsuleBytes []byte) ([]byte, []byte, error) {
 	// Convert Ethereum private key bytes to Umbral secret key
 	umbralSK, err := GenerateSecretKeyFromBytes(privateKeyBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer umbralSK.Free()
 
 	// Convert capsule bytes back to Capsule object
 	capsule, err := capsuleFromBytes(capsuleBytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer capsule.Free()
 
 	// Extract the seed key from the capsule using the owner's private key
 	seedKey, err := getSeedKeyFromCapsuleOriginal(umbralSK, capsule)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return seedKey, nil
+	// Convert capsule to simple bytes format
+	capsuleBytesSimple, err := capsuleToBytesSimple(capsule)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return seedKey, capsuleBytesSimple, nil
 }
 
 // CreateRekey creates rekey fragments with threshold 1 using Ethereum key bytes

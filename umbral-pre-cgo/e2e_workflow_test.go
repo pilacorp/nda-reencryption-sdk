@@ -227,7 +227,7 @@ func TestE2EWorkflowOwnerDecryptData(t *testing.T) {
 
 	// Step 3: Get seed key by owner
 	t.Log("Step 3: Getting seed key by owner...")
-	seedKeyBytes, err := GetSeedKeyByOwner(ownerPrivateKeyBytes, capsuleBytes)
+	seedKeyBytes, capsuleBytesSimple, err := GetSeedKeyByOwner(ownerPrivateKeyBytes, capsuleBytes)
 	if err != nil {
 		t.Fatalf("Failed to get seed key by owner: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestE2EWorkflowOwnerDecryptData(t *testing.T) {
 
 	// Step 5: Decrypt data
 	t.Log("Step 5: Decrypting data...")
-	decrypted, err := decryptor.DecryptWithCapsule(ciphertext, capsuleBytes)
+	decrypted, err := decryptor.DecryptWithCapsule(ciphertext, capsuleBytesSimple)
 	if err != nil {
 		t.Fatalf("Failed to decrypt data: %v", err)
 	}
