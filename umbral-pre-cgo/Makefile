@@ -116,4 +116,4 @@ help:
 	@echo "  make dev-setup"
 	@echo ""
 	@echo "For users:"
-	@echo "  go get github.com/vlsilver/umbral/umbral-pre-cgo"
+	@echo "  go get github.com/vlsilver/umbral/umbral-pre-cgo"ER
