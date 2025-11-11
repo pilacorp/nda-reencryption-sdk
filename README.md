@@ -1,297 +1,104 @@
-# NDA Re-encryption SDK
+# Umbral Proxy Re-encryption (Go SDK)
 
-A comprehensive Rust implementation of the Umbral threshold proxy re-encryption scheme with Go bindings for secure data sharing and delegation.
+Go implementation of the Umbral proxy re-encryption workflow. The package
+allows you to:
 
-## 🚀 Overview
+- Encrypt data for a data owner (Alice) and create a **capsule**.
+- Derive a re-encryption key so a proxy can transform the capsule for a delegate
+  (Bob).
+- Let Bob decrypt the re-encrypted ciphertext using his own secret key.
+- Optionally encrypt data streams in fixed-size chunks.
 
-The NDA Re-encryption SDK enables secure data sharing through proxy re-encryption, allowing data owners to delegate decryption rights to recipients without exposing their private keys. This is particularly useful for:
+> **Module import:** `github.com/pilacorp/nda-reencryption-sdk`
 
-- **Secure Data Sharing**: Share encrypted data with specific recipients
-- **Key Delegation**: Grant access without sharing private keys
-- **Privacy-Preserving Systems**: Maintain data confidentiality in distributed systems
-- **Blockchain Integration**: Works seamlessly with Ethereum keys
-
-## 📦 Components
-
-- **umbral-pre**: Core Rust implementation with high-performance cryptographic operations
-- **umbral-pre-cgo**: Go bindings for easy integration with Go applications
-
-## 🛠️ Quick Start with Go
-
-### Installation
+## Installation
 
 ```bash
-go get github.com/dinhwe2612/umbral/umbral-pre-cgo
+go get github.com/pilacorp/nda-reencryption-sdk
 ```
 
-### Basic Usage Example
+The module exposes packages under `pre`, `utils`, and `curve`. For most use
+cases you only need `pre` and `utils`.
+
+## Basic example
+
+The `examples/basic` folder contains a runnable sample:
 
 ```go
 package main
 
 import (
-    "fmt"
-    "log"
-    
-    umbralprecgo "github.com/dinhwe2612/umbral/umbral-pre-cgo"
+	"fmt"
+	"log"
+
+	"github.com/pilacorp/nda-reencryption-sdk/pre"
+	"github.com/pilacorp/nda-reencryption-sdk/utils"
 )
 
 func main() {
-    // 1. Generate Ethereum key pairs
-    delegatingPrivateKey, delegatingPublicKey, err := umbralprecgo.GenerateEthereumKeyPair()
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    receivingPrivateKey, receivingPublicKey, err := umbralprecgo.GenerateEthereumKeyPair()
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // 2. Encrypt data
-    plaintext := []byte("Sensitive data to be shared")
-    capsuleBytes, ciphertext, err := umbralprecgo.EncrypData(delegatingPublicKey, plaintext)
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // 3. Create rekey for delegation
-    kfragBytes, err := umbralprecgo.CreateRekey(delegatingPrivateKey, receivingPublicKey)
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // 4. Re-encrypt capsule (typically done by proxy servers)
-    cfragBytes, err := umbralprecgo.ReencryptCapsule(
-        capsuleBytes,
-        kfragBytes,
-        delegatingPublicKey, // verifying key
-        delegatingPublicKey, // delegating key
-        receivingPublicKey,  // receiving key
-    )
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // 5. Decrypt with recipient's key
-    decrypted, err := umbralprecgo.DecryptReencryptedData(
-        receivingPrivateKey,
-        delegatingPublicKey,
-        capsuleBytes,
-        cfragBytes,
-        ciphertext,
-    )
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    fmt.Printf("Decrypted: %s\n", string(decrypted))
+	aliceSK, alicePK, err := utils.GenerateKeys()
+	if err != nil {
+		log.Fatalf("generate alice keys: %v", err)
+	}
+	bobSK, bobPK, err := utils.GenerateKeys()
+	if err != nil {
+		log.Fatalf("generate bob keys: %v", err)
+	}
+
+	message := []byte("Proxy re-encryption with Umbral in Go")
+
+	capsule, ciphertext, err := pre.Encrypt(message, alicePK)
+	if err != nil {
+		log.Fatalf("encrypt: %v", err)
+	}
+
+	shareDataKey, err := pre.CreateShareDataKey(aliceSK, bobPK, capsule)
+	if err != nil {
+		log.Fatalf("create share data key: %v", err)
+	}
+
+	plaintext, err := pre.Decrypt(bobSK, shareDataKey, ciphertext)
+	if err != nil {
+		log.Fatalf("decrypt: %v", err)
+	}
+
+	fmt.Printf("Recovered message: %s\n", plaintext)
 }
 ```
 
-## 🔧 API Reference
-
-### Key Management
-```go
-// Generate Ethereum-compatible key pairs
-privateKey, publicKey, err := umbralprecgo.GenerateEthereumKeyPair()
-```
-
-### Encryption
-```go
-// Encrypt data with public key
-capsuleBytes, ciphertext, err := umbralprecgo.EncrypData(publicKey, plaintext)
-```
-
-### Rekey Creation
-```go
-// Create rekey fragments for delegation
-kfragBytes, err := umbralprecgo.CreateRekey(delegatingPrivateKey, receivingPublicKey)
-```
-
-### Re-encryption
-```go
-// Re-encrypt capsule using key fragments
-cfragBytes, err := umbralprecgo.ReencryptCapsule(
-    capsuleBytes,
-    kfragBytes,
-    verifyingPublicKey,
-    delegatingPublicKey,
-    receivingPublicKey,
-)
-```
-
-### Decryption
-```go
-// Decrypt re-encrypted data
-decrypted, err := umbralprecgo.DecryptReencryptedData(
-    receivingPrivateKey,
-    delegatingPublicKey,
-    capsuleBytes,
-    cfragBytes,
-    ciphertext,
-)
-```
-
-## 🏗️ Architecture
-
-```
-Data Owner (Alice)          Proxy Servers (Ursulas)        Recipient (Bob)
-     |                              |                           |
-     |-- Generate Keys ------------>|                           |
-     |-- Encrypt Data ------------->|                           |
-     |-- Create Rekey ------------->|                           |
-     |                              |-- Re-encrypt Capsule ---->|
-     |                              |                           |-- Decrypt Data
-```
-
-## 🔐 Cryptographic Concepts
-
-Understanding the key components of proxy re-encryption:
-
-### **Capsule**
-A cryptographic object that contains the necessary information to decrypt ciphertext. It's created during encryption and contains:
-- **Point U**: A curve point used in the decryption process
-- **Point V**: Another curve point for decryption
-- **Point E**: Additional cryptographic material
-- **Nonce**: Random value ensuring security
-
-### **Key Fragment (kFrag)**
-A re-encryption key fragment created by the data owner (Alice) to delegate decryption rights to a recipient (Bob). Contains:
-- **Re-encryption key**: Allows transformation of capsules
-- **Verification key**: Ensures the fragment's authenticity
-- **Nonce**: Prevents replay attacks
-- **Signature**: Cryptographic proof of authenticity
-
-### **Capsule Fragment (cFrag)**
-The result of re-encrypting a capsule using a key fragment. Created by proxy servers (Ursulas) and contains:
-- **Re-encrypted capsule data**: Transformed cryptographic material
-- **Proof**: Cryptographic proof that re-encryption was performed correctly
-- **Verification key**: Used to verify the fragment's validity
-
-### **Rekey**
-A cryptographic transformation key that enables proxy re-encryption. The rekey is:
-- **Generated by Alice**: Using her private key and Bob's public key
-- **Used by Ursulas**: To transform capsules from Alice's encryption to Bob's encryption
-- **Threshold-based**: Can be split into multiple fragments for security
-- **One-time use**: Each rekey fragment can only be used once
-
-### **Delegating Key**
-The private key of the data owner (Alice) who wants to share encrypted data. Used to:
-- **Encrypt original data**: Create the initial capsule and ciphertext
-- **Generate rekeys**: Create key fragments for delegation
-- **Sign operations**: Provide cryptographic proof of authorization
-
-### **Receiving Key**
-The public key of the intended recipient (Bob) who will decrypt the re-encrypted data. Used to:
-- **Generate rekeys**: Alice uses this to create delegation fragments
-- **Verify fragments**: Ensure re-encryption was done correctly
-- **Enable decryption**: Bob uses his corresponding private key to decrypt
-
-### **Verifying Key**
-A public key used to verify the authenticity of cryptographic operations. Typically:
-- **Same as delegating key**: In most cases, Alice's public key
-- **Used for validation**: Ensures capsules and fragments are legitimate
-- **Prevents tampering**: Cryptographic proof that operations are authorized
-
-### **Proxy Server (Ursula)**
-Semi-trusted servers that perform re-encryption operations. They:
-- **Receive capsules**: Get encrypted data from Alice
-- **Receive key fragments**: Get rekey fragments from Alice
-- **Perform re-encryption**: Transform capsules using key fragments
-- **Return capsule fragments**: Send re-encrypted data to Bob
-- **Cannot decrypt**: Don't have access to private keys
-
-### **Workflow Summary**
-```
-1. Alice encrypts data → Creates Capsule + Ciphertext
-2. Alice creates kFrag → Delegates to Bob via proxy
-3. Proxy re-encrypts → Converts Capsule to cFrag
-4. Bob decrypts → Uses cFrag + his private key
-```
-
-## 📋 Features
-
-- ✅ **Ethereum Integration**: Works with secp256k1 keys from go-ethereum
-- ✅ **Memory Safe**: Automatic memory management with Rust safety guarantees
-- ✅ **Thread Safe**: Safe for concurrent use in multi-threaded applications
-- ✅ **Cross-Platform**: Linux, macOS, and Windows support
-- ✅ **High Performance**: Optimized Rust implementation
-- ✅ **Serialization**: Convert cryptographic objects to/from bytes
-- ✅ **Validation**: Built-in key and data validation
-
-## 🧪 Testing
+Run it with:
 
 ```bash
-# Run all tests
-go test -v ./umbral-pre-cgo
-
-# Run specific test
-go test -v -run TestE2EWorkflow ./umbral-pre-cgo
-
-# Run with coverage
-go test -v -cover ./umbral-pre-cgo
+go run ./examples/basic
 ```
 
-## 📚 Examples
+## Streaming support
 
-Check out the comprehensive examples in the `umbral-pre-cgo/examples/` directory:
+Package `pre` also exposes `EncryptStream` / `DecryptStream` for large files.
+These helpers break data into fixed-size chunks, encrypt each chunk with AES-GCM
+using unique nonces, and store chunk metadata inside the capsule. The companion
+example `examples/stream/main.go` demonstrates the full flow:
 
-- **Basic Usage**: Complete workflow demonstration
-- **Error Handling**: Robust error management patterns
-- **Key Validation**: Key verification utilities
-- **Multiple Messages**: Batch processing examples
+```go
+input := bytes.NewReader(bigData)
+var cipher bytes.Buffer
 
-## 🔧 Building from Source
+chunkSize := uint32(64 * 1024)
+capsule, err := pre.EncryptStream(input, &cipher, alicePK, chunkSize)
+shareKey, err := pre.CreateShareDataKey(aliceSK, bobPK, capsule)
 
-If you need to build the Rust library for your platform:
+var plain bytes.Buffer
+err = pre.DecryptStream(bytes.NewReader(cipher.Bytes()), &plain, bobSK, shareKey)
+```
+
+`chunkSize` defines the frame size used during encryption. Capsule metadata keeps
+track of the chunk size so that the decryptor can reconstruct the stream.
+
+## Testing
 
 ```bash
-# Clone the repository
-git clone https://github.com/dinhwe2612/umbral.git
-cd umbral
-
-# Build Rust library with C bindings
-cd umbral-pre
-cargo build --release --features bindings-c
-
-# Copy the library to Go bindings directory
-# Linux
-cp target/release/libumbral_pre.so ../umbral-pre-cgo/lib/
-
-# macOS
-cp target/release/libumbral_pre.dylib ../umbral-pre-cgo/lib/
-
-# Windows
-copy target\release\umbral_pre.dll ..\umbral-pre-cgo\lib\
+go test ./...
 ```
 
-## ⚠️ Requirements
+## License
 
-- **Go**: 1.21 or higher
-- **Rust**: Latest stable version
-- **CGO**: Must be enabled (`CGO_ENABLED=1`)
-- **Operating System**: Linux, macOS, or Windows
-
-## 📖 Documentation
-
-- [Go Bindings Documentation](umbral-pre-cgo/README.md) - Detailed Go integration guide
-- [Umbral Paper](https://github.com/nucypher/umbral-doc) - Original research paper
-- [Rust Implementation](https://github.com/nucypher/rust-umbral) - Core Rust library
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the GPL-3.0-only License - see the [LICENSE](LICENSE) file for details.
-
-## 🔗 Links
-
-
-- [Umbral Research Paper](https://github.com/nucypher/umbral-doc)
