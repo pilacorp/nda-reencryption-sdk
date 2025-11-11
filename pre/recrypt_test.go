@@ -24,27 +24,27 @@ func TestE2E(t *testing.T) {
 	t.Logf("Original data: %s", string(testData))
 
 	// Step 1: Alice encrypts data for herself
-	capsule, cipherText, err := Encrypt(testData, alicePubKey)
+	capsule, cipherText, err := Encrypt(testData, utils.PublicKeyToCompressedKey(alicePubKey))
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
 	t.Logf("Encryption successful. Capsule size: %d bytes, Cipher text size: %d bytes", len(capsule), len(cipherText))
 
 	// Step 2: Alice creates a re-encryption key for Bob
-	shareDataKey, err := CreateShareDataKey(alicePrivKey, bobPubKey, capsule)
+	shareDataKey, err := CreateShareDataKey(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsule)
 	if err != nil {
 		t.Fatalf("Failed to create share data key: %v", err)
 	}
 	t.Logf("Share data key created successfully. Size: %d bytes", len(shareDataKey))
 
 	// Step 3: Bob decrypts the data using the share data key
-	decryptedData, err := Decrypt(bobPrivKey, shareDataKey, cipherText)
+	decryptedData, err := Decrypt(utils.PrivateKeyToHexString(bobPrivKey), shareDataKey, cipherText)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}
 
 	// Step 4: owner decrypts the data using the original capsule
-	decryptedOwnerData, err := DecryptByOwner(alicePrivKey, capsule, cipherText)
+	decryptedOwnerData, err := DecryptByOwner(utils.PrivateKeyToHexString(alicePrivKey), capsule, cipherText)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}

@@ -26,18 +26,18 @@ func main() {
 	var cipherBuf bytes.Buffer
 	chunkSize := uint32(64 * 1024) // 64 KiB frames
 
-	capsule, err := pre.EncryptStream(inputReader, &cipherBuf, alicePK, chunkSize)
+	capsule, err := pre.EncryptStream(inputReader, &cipherBuf, utils.PublicKeyToCompressedKey(alicePK), chunkSize)
 	if err != nil {
 		log.Fatalf("encrypt stream: %v", err)
 	}
 
-	shareDataKey, err := pre.CreateShareDataKey(aliceSK, bobPK, capsule)
+	shareDataKey, err := pre.CreateShareDataKey(utils.PrivateKeyToHexString(aliceSK), utils.PublicKeyToCompressedKey(bobPK), capsule)
 	if err != nil {
 		log.Fatalf("create share data key: %v", err)
 	}
 
 	var plainBuf bytes.Buffer
-	if err := pre.DecryptStream(bytes.NewReader(cipherBuf.Bytes()), &plainBuf, bobSK, shareDataKey); err != nil {
+	if err := pre.DecryptStream(bytes.NewReader(cipherBuf.Bytes()), &plainBuf, utils.PrivateKeyToHexString(bobSK), shareDataKey); err != nil {
 		log.Fatalf("decrypt stream: %v", err)
 	}
 

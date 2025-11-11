@@ -1,7 +1,6 @@
 package pre
 
 import (
-	"crypto/ecdsa"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -9,11 +8,19 @@ import (
 	"io"
 
 	"github.com/pilacorp/nda-reencryption-sdk/curve"
+	"github.com/pilacorp/nda-reencryption-sdk/utils"
 )
 
-func EncryptStream(reader io.Reader, outputWriter io.Writer, pubKey *ecdsa.PublicKey, chunkSize uint32) ([]byte, error) {
+// EncryptStream encrypts the stream data using the owner public key and returns the capsule bytes.
+// pubKey is the compressed public key of the owner.
+func EncryptStream(inputReader io.Reader, outputWriter io.Writer, pubKey string, chunkSize uint32) ([]byte, error) {
 	// 1. generate aes key
-	capsule, keyBytes, err := generateAESKey(pubKey, chunkSize)
+	pKey, err := utils.PublicCompressedKeyToKey(pubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	capsule, keyBytes, err := generateAESKey(pKey, chunkSize)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +34,7 @@ func EncryptStream(reader io.Reader, outputWriter io.Writer, pubKey *ecdsa.Publi
 
 	// 2. encrypt the stream
 	for {
-		// generate nonce.
+		// generate nonce for each chunk to avoid attack by same nonce.
 		nonceIdxBuf := make([]byte, 4)
 		binary.BigEndian.PutUint32(nonceIdxBuf, uint32(nonceIdx))
 		nonceChunkBytes := append(baseNonce[:], nonceIdxBuf...)
@@ -36,7 +43,7 @@ func EncryptStream(reader io.Reader, outputWriter io.Writer, pubKey *ecdsa.Publi
 		// read the chunk from the reader.
 		buf := make([]byte, chunkSize)
 
-		n, err := io.ReadFull(reader, buf)
+		n, err := io.ReadFull(inputReader, buf)
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 			if errors.Is(err, io.EOF) {
 				break
@@ -65,13 +72,19 @@ func EncryptStream(reader io.Reader, outputWriter io.Writer, pubKey *ecdsa.Publi
 	return encodeCapsule(capsule)
 }
 
-func DecryptStream(reader io.Reader, outputWriter io.Writer, priKey *ecdsa.PrivateKey, shareDataKey []byte) error {
+// DecryptStream decrypts the stream data using the receiver private key and the share data key and returns the plain text.
+func DecryptStream(inputReader io.Reader, outputWriter io.Writer, recieverPrvKey string, shareDataKey []byte) error {
 	// 1. decrypt share data key to get aes key.
+	prvKey, err := utils.PrivateKeyStrToKey(recieverPrvKey)
+	if err != nil {
+		return err
+	}
+
 	if len(shareDataKey) != 250 {
 		return fmt.Errorf("invalid share data key")
 	}
 
-	decodeCapsule, err := decodeCapsule(shareDataKey[:185])
+	cap, err := decodeCapsule(shareDataKey[:185])
 	if err != nil {
 		return err
 	}
@@ -82,11 +95,11 @@ func DecryptStream(reader io.Reader, outputWriter io.Writer, priKey *ecdsa.Priva
 	}
 
 	// if the data is not encrypted in stream mode, return an error.
-	if !decodeCapsule.IsStreamData() {
+	if !cap.IsStreamData() {
 		return fmt.Errorf("encrypted in single mode")
 	}
 
-	keyBytes, err := decryptAESKey(priKey, decodeCapsule, pubX)
+	keyBytes, err := decryptAESKey(prvKey, cap, pubX)
 	if err != nil {
 		return err
 	}
@@ -100,15 +113,15 @@ func DecryptStream(reader io.Reader, outputWriter io.Writer, priKey *ecdsa.Priva
 
 	// 2. decrypt the stream
 	for {
-		// generate nonce.
+		// generate nonce for each chunk to avoid attack by same nonce.
 		nonceIdxBuf := make([]byte, 4)
 		binary.BigEndian.PutUint32(nonceIdxBuf, uint32(nonceIdx))
 		nonceChunkBytes := append(baseNonce[:], nonceIdxBuf...)
 		nonceIdx++
 
 		// read the chunk from the reader.
-		buf := make([]byte, decodeCapsule.ChunkSize+16)
-		n, err := io.ReadFull(reader, buf)
+		buf := make([]byte, cap.ChunkSize+16)
+		n, err := io.ReadFull(inputReader, buf)
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 			if err == io.EOF {
 				break
@@ -118,7 +131,7 @@ func DecryptStream(reader io.Reader, outputWriter io.Writer, priKey *ecdsa.Priva
 		}
 
 		// if the last chunk is less than chunk size, set the chunk size final to the actual size.
-		if errors.Is(err, io.ErrUnexpectedEOF) || n < int(decodeCapsule.ChunkSize+16) {
+		if errors.Is(err, io.ErrUnexpectedEOF) || n < int(cap.ChunkSize+16) {
 			buf = buf[:n]
 		}
 
@@ -136,23 +149,29 @@ func DecryptStream(reader io.Reader, outputWriter io.Writer, priKey *ecdsa.Priva
 	return nil
 }
 
-func DecryptStreamByOwner(reader io.Reader, outputWriter io.Writer, priKey *ecdsa.PrivateKey, originalCapsule []byte) error {
+// DecryptStreamByOwner decrypts the stream data using the owner private key and the original capsule and returns the plain text.
+func DecryptStreamByOwner(inputReader io.Reader, outputWriter io.Writer, ownerPrvKey string, capsule []byte) error {
 	// 1. decrypt original capsule to get aes key.
-	if len(originalCapsule) != 185 {
+	prvKey, err := utils.PrivateKeyStrToKey(ownerPrvKey)
+	if err != nil {
+		return err
+	}
+
+	if len(capsule) != 185 {
 		return fmt.Errorf("invalid original capsule")
 	}
 
-	decodeCapsule, err := decodeCapsule(originalCapsule)
+	cap, err := decodeCapsule(capsule)
 	if err != nil {
 		return err
 	}
 
 	// if the data is not encrypted in stream mode, return an error.
-	if !decodeCapsule.IsStreamData() {
+	if !cap.IsStreamData() {
 		return fmt.Errorf("encrypted in single mode")
 	}
 
-	keyBytes, err := decryptAESKeyByOwner(priKey, decodeCapsule)
+	keyBytes, err := decryptAESKeyByOwner(prvKey, cap)
 	if err != nil {
 		return err
 	}
@@ -166,15 +185,15 @@ func DecryptStreamByOwner(reader io.Reader, outputWriter io.Writer, priKey *ecds
 
 	// 2. decrypt the stream
 	for {
-		// generate nonce.
+		// generate nonce for each chunk to avoid attack by same nonce.
 		nonceIdxBuf := make([]byte, 4)
 		binary.BigEndian.PutUint32(nonceIdxBuf, uint32(nonceIdx))
 		nonceChunkBytes := append(baseNonce[:], nonceIdxBuf...)
 		nonceIdx++
 
 		// read the chunk from the reader.
-		buf := make([]byte, decodeCapsule.ChunkSize+16)
-		n, err := io.ReadFull(reader, buf)
+		buf := make([]byte, cap.ChunkSize+16)
+		n, err := io.ReadFull(inputReader, buf)
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 			if err == io.EOF {
 				break
@@ -184,7 +203,7 @@ func DecryptStreamByOwner(reader io.Reader, outputWriter io.Writer, priKey *ecds
 		}
 
 		// if the last chunk is less than chunk size, set the chunk size final to the actual size.
-		if errors.Is(err, io.ErrUnexpectedEOF) || n < int(decodeCapsule.ChunkSize+16) {
+		if errors.Is(err, io.ErrUnexpectedEOF) || n < int(cap.ChunkSize+16) {
 			buf = buf[:n]
 		}
 

@@ -27,14 +27,14 @@ func TestE2EStream(t *testing.T) {
 	encryptWriter := bytes.NewBuffer(nil)
 
 	// Step 1: Alice encrypts the stream
-	capsule, err := EncryptStream(encryptReader, encryptWriter, alicePubKey, 2)
+	capsule, err := EncryptStream(encryptReader, encryptWriter, utils.PublicKeyToCompressedKey(alicePubKey), 2)
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
 	t.Logf("Encryption successful. Capsule size: %d bytes", len(capsule))
 
 	// Step 2: Alice creates a re-encryption key for Bob
-	shareDataKey, err := CreateShareDataKey(alicePrivKey, bobPubKey, capsule)
+	shareDataKey, err := CreateShareDataKey(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsule)
 	if err != nil {
 		t.Fatalf("Failed to create share data key: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestE2EStream(t *testing.T) {
 
 	// Step 3: Bob decrypts the stream
 	decryptWriter := bytes.NewBuffer(nil)
-	err = DecryptStream(encryptWriter, decryptWriter, bobPrivKey, shareDataKey)
+	err = DecryptStream(encryptWriter, decryptWriter, utils.PrivateKeyToHexString(bobPrivKey), shareDataKey)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}
@@ -53,14 +53,14 @@ func TestE2EStream(t *testing.T) {
 	encryptOwnerWriter := bytes.NewBuffer(nil)
 
 	// Step 4: Alice encrypts the stream
-	capsuleOwner, err := EncryptStream(encryptOwnerReader, encryptOwnerWriter, alicePubKey, 2)
+	capsuleOwner, err := EncryptStream(encryptOwnerReader, encryptOwnerWriter, utils.PublicKeyToCompressedKey(alicePubKey), 2)
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
 
 	// Step 5: owner decrypts the stream
 	decryptWriterOwner := bytes.NewBuffer(nil)
-	err = DecryptStreamByOwner(encryptOwnerWriter, decryptWriterOwner, alicePrivKey, capsuleOwner)
+	err = DecryptStreamByOwner(encryptOwnerWriter, decryptWriterOwner, utils.PrivateKeyToHexString(alicePrivKey), capsuleOwner)
 	if err != nil {
 		t.Fatalf("Decryption Owner failed: %v", err)
 	}

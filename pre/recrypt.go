@@ -10,90 +10,77 @@ import (
 	"github.com/pilacorp/nda-reencryption-sdk/utils"
 )
 
-func Encrypt(data []byte, pubKey *ecdsa.PublicKey) ([]byte, []byte, error) {
+// Encrypt encrypts the data using the owner public key and returns the capsule bytes and cipher text.
+// ownerPubKey is the compressed public key of the owner.
+func Encrypt(data []byte, ownerPubKey string) (capBytes []byte, cipherText []byte, err error) {
+	pubKey, err := utils.PublicCompressedKeyToKey(ownerPubKey)
+	if err != nil {
+		return
+	}
+
 	capsule, keyBytes, err := generateAESKey(pubKey, 0)
 	if err != nil {
-		return nil, nil, err
+		return
 	}
 
 	key := hex.EncodeToString(keyBytes)
-	cipherText, err := gmcEncrypt(data, key[:32], keyBytes[:12], nil)
+	cipherText, err = gmcEncrypt(data, key[:32], keyBytes[:12], nil)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	capsuleAsBytes, err := encodeCapsule(capsule)
+	capBytes, err = encodeCapsule(capsule)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return capsuleAsBytes, cipherText, nil
+	return
 }
 
-func CreateShareDataKey(priKey *ecdsa.PrivateKey, pkey *ecdsa.PublicKey, capsule []byte) ([]byte, error) {
-	r, p, err := rekeyGenerate(priKey, pkey)
+// CreateShareDataKey creates a share data key from the owner private key and the receiver public key for the receiver.
+// share data key used to reciever can direct decrypt data .
+// receiverPubKey is the compressed public key of the receiver.
+func CreateShareDataKey(ownerPrvKey, recieverPubKey string, capsule []byte) ([]byte, error) {
+	prvKey, err := utils.PrivateKeyStrToKey(ownerPrvKey)
+	if err != nil {
+		return nil, err
+	}
+
+	pubKey, err := utils.PublicCompressedKeyToKey(recieverPubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	r, p, err := rekeyGenerate(prvKey, pubKey)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	decodeCap, err := decodeCapsule(capsule)
+	cap, err := decodeCapsule(capsule)
 	if err != nil {
 		return nil, err
 	}
 
-	reCap, err := reEncryption(r, decodeCap)
+	reCap, err := reEncryption(r, cap)
 	if err != nil {
 		return nil, err
 	}
 
-	reCapsuleAsBytes, err := encodeCapsule(reCap)
+	reCapBytes, err := encodeCapsule(reCap)
 	if err != nil {
 		return nil, err
 	}
 
-	return utils.ConcatBytes(reCapsuleAsBytes, curve.PointToBytes(p)), nil
+	return utils.ConcatBytes(reCapBytes, curve.PointToBytes(p)), nil
 }
 
-func CreateRekey(priKey *ecdsa.PrivateKey, pkey *ecdsa.PublicKey) ([]byte, error) {
-	r, p, err := rekeyGenerate(priKey, pkey)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	return encodeRekey(r, p)
-}
-
-func ReEncrypt(cap []byte, rekeyBytes []byte) ([]byte, error) {
-	r, pubX, err := decodeRekey(rekeyBytes)
+// Decrypt decrypts the data using the receiver private key and the share data key and returns the plain text.
+func Decrypt(recieverPrvKey string, shareDataKey []byte, cipherText []byte) ([]byte, error) {
+	priKey, err := utils.PrivateKeyStrToKey(recieverPrvKey)
 	if err != nil {
 		return nil, err
 	}
 
-	decodeCap, err := decodeCapsule(cap)
-	if err != nil {
-		fmt.Println("decode error:", err)
-
-		return nil, err
-	}
-
-	reCap, err := reEncryption(r, decodeCap)
-	if err != nil {
-		fmt.Println("re encryption error:", err)
-
-		return nil, err
-	}
-
-	reCapsuleAsBytes, err := encodeCapsule(reCap)
-	if err != nil {
-		fmt.Println("encode error:", err)
-
-		return nil, err
-	}
-
-	return utils.ConcatBytes(reCapsuleAsBytes, curve.PointToBytes(pubX)), nil
-}
-
-func Decrypt(priKey *ecdsa.PrivateKey, shareDataKey []byte, cipherText []byte) ([]byte, error) {
 	if len(shareDataKey) != 250 {
 		return nil, fmt.Errorf("invalid share data key")
 	}
@@ -120,17 +107,23 @@ func Decrypt(priKey *ecdsa.PrivateKey, shareDataKey []byte, cipherText []byte) (
 	return decryptData, nil
 }
 
-func DecryptByOwner(aPriKey *ecdsa.PrivateKey, capsuleBytes []byte, cipherText []byte) (plainText []byte, err error) {
-	decodeCapsule, err := decodeCapsule(capsuleBytes)
+// DecryptByOwner decrypts the data using the owner private key and the original capsule and returns the plain text.
+func DecryptByOwner(ownerPrvKey string, capsule []byte, cipherText []byte) (plainText []byte, err error) {
+	prvKey, err := utils.PrivateKeyStrToKey(ownerPrvKey)
 	if err != nil {
 		return nil, err
 	}
 
-	if decodeCapsule.IsStreamData() {
+	cap, err := decodeCapsule(capsule)
+	if err != nil {
+		return nil, err
+	}
+
+	if cap.IsStreamData() {
 		return nil, fmt.Errorf("encrypted in stream mode")
 	}
 
-	keyBytes, err := decryptAESKeyByOwner(aPriKey, decodeCapsule)
+	keyBytes, err := decryptAESKeyByOwner(prvKey, cap)
 	if err != nil {
 		return nil, err
 	}
@@ -145,16 +138,19 @@ func DecryptByOwner(aPriKey *ecdsa.PrivateKey, capsuleBytes []byte, cipherText [
 	return plainText, nil
 }
 
-func decryptAESKey(bPriKey *ecdsa.PrivateKey, cap *capsule, pubX *ecdsa.PublicKey) (keyBytes []byte, err error) {
-	S := curve.PointScalarMul(pubX, bPriKey.D)
+func decryptAESKey(prvKey *ecdsa.PrivateKey, cap *capsule, pointX *ecdsa.PublicKey) (keyBytes []byte, err error) {
+	S := curve.PointScalarMul(pointX, prvKey.D)
+
 	d := utils.HashToCurve(
 		utils.ConcatBytes(
 			utils.ConcatBytes(
-				curve.PointToBytes(pubX),
-				curve.PointToBytes(&bPriKey.PublicKey)),
+				curve.PointToBytes(pointX),
+				curve.PointToBytes(&prvKey.PublicKey)),
 			curve.PointToBytes(S)))
+
 	point := curve.PointScalarMul(
 		curve.PointScalarAdd(cap.E, cap.V), d)
+
 	keyBytes, err = utils.Sha3Hash(curve.PointToBytes(point))
 	if err != nil {
 		return nil, err
@@ -163,14 +159,15 @@ func decryptAESKey(bPriKey *ecdsa.PrivateKey, cap *capsule, pubX *ecdsa.PublicKe
 	return keyBytes, nil
 }
 
-func decryptAESKeyByOwner(aPriKey *ecdsa.PrivateKey, cap *capsule) ([]byte, error) {
+func decryptAESKeyByOwner(prvKey *ecdsa.PrivateKey, cap *capsule) ([]byte, error) {
 	point1 := curve.PointScalarAdd(cap.E, cap.V)
-	point := curve.PointScalarMul(point1, aPriKey.D)
+	point := curve.PointScalarMul(point1, prvKey.D)
+
 	return utils.Sha3Hash(curve.PointToBytes(point))
 }
 
-func decrypt(bPriKey *ecdsa.PrivateKey, cap *capsule, pubX *ecdsa.PublicKey, cipherText []byte) (plainText []byte, err error) {
-	keyBytes, err := decryptAESKey(bPriKey, cap, pubX)
+func decrypt(prvKey *ecdsa.PrivateKey, cap *capsule, pointX *ecdsa.PublicKey, cipherText []byte) (plainText []byte, err error) {
+	keyBytes, err := decryptAESKey(prvKey, cap, pointX)
 	if err != nil {
 		return nil, err
 	}
@@ -185,21 +182,21 @@ func decrypt(bPriKey *ecdsa.PrivateKey, cap *capsule, pubX *ecdsa.PublicKey, cip
 	return plainText, nil
 }
 
-func rekeyGenerate(aPriKey *ecdsa.PrivateKey, bPubKey *ecdsa.PublicKey) (*big.Int, *ecdsa.PublicKey, error) {
+func rekeyGenerate(ownerPrvKey *ecdsa.PrivateKey, recieverPubKey *ecdsa.PublicKey) (*big.Int, *ecdsa.PublicKey, error) {
 	priX, pubX, err := utils.GenerateKeys()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	point := curve.PointScalarMul(bPubKey, priX.D)
+	point := curve.PointScalarMul(recieverPubKey, priX.D)
 	d := utils.HashToCurve(
 		utils.ConcatBytes(
 			utils.ConcatBytes(
 				curve.PointToBytes(pubX),
-				curve.PointToBytes(bPubKey)),
+				curve.PointToBytes(recieverPubKey)),
 			curve.PointToBytes(point)))
 
-	rk := curve.BigIntMul(aPriKey.D, curve.GetInvert(d))
+	rk := curve.BigIntMul(ownerPrvKey.D, curve.GetInvert(d))
 	rk.Mod(rk, curve.N)
 
 	return rk, pubX, nil
@@ -258,4 +255,43 @@ func generateAESKey(pubKey *ecdsa.PublicKey, chunkSize uint32) (cap *capsule, ke
 	}
 
 	return cap, keyBytes, nil
+}
+
+func createRekey(ownerPrvKey *ecdsa.PrivateKey, recieverPubKey *ecdsa.PublicKey) ([]byte, error) {
+	r, p, err := rekeyGenerate(ownerPrvKey, recieverPubKey)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	return encodeRekey(r, p)
+}
+
+func reEncrypt(cap []byte, rekeyBytes []byte) ([]byte, error) {
+	r, pubX, err := decodeRekey(rekeyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	decodeCap, err := decodeCapsule(cap)
+	if err != nil {
+		fmt.Println("decode error:", err)
+
+		return nil, err
+	}
+
+	reCap, err := reEncryption(r, decodeCap)
+	if err != nil {
+		fmt.Println("re encryption error:", err)
+
+		return nil, err
+	}
+
+	reCapsuleAsBytes, err := encodeCapsule(reCap)
+	if err != nil {
+		fmt.Println("encode error:", err)
+
+		return nil, err
+	}
+
+	return utils.ConcatBytes(reCapsuleAsBytes, curve.PointToBytes(pubX)), nil
 }

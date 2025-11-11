@@ -25,7 +25,6 @@ func (c *capsule) IsStreamData() bool {
 func encodeRekey(r *big.Int, p *ecdsa.PublicKey) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
-	// serialize r (big.Int)
 	sBytes := r.Bytes()
 	if err := binary.Write(buf, binary.LittleEndian, uint32(len(sBytes))); err != nil {
 		return nil, err
@@ -35,7 +34,6 @@ func encodeRekey(r *big.Int, p *ecdsa.PublicKey) ([]byte, error) {
 		return nil, err
 	}
 
-	// serialize p (public key)
 	pX, pY := p.X.Bytes(), p.Y.Bytes()
 
 	if err := binary.Write(buf, binary.LittleEndian, uint32(len(pX))); err != nil {
@@ -84,7 +82,6 @@ func decodeRekey(data []byte) (*big.Int, *ecdsa.PublicKey, error) {
 func encodeCapsule(cap *capsule) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
-	// serialize E (public key)
 	ecX, ecY := cap.E.X.Bytes(), cap.E.Y.Bytes()
 
 	if err := binary.Write(buf, binary.LittleEndian, uint32(len(ecX))); err != nil {
@@ -103,7 +100,6 @@ func encodeCapsule(cap *capsule) ([]byte, error) {
 		return nil, err
 	}
 
-	// serialize V (public key)
 	vX, vY := cap.V.X.Bytes(), cap.V.Y.Bytes()
 
 	if err := binary.Write(buf, binary.LittleEndian, uint32(len(vX))); err != nil {

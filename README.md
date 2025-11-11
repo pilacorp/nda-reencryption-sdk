@@ -1,6 +1,6 @@
-# Umbral Proxy Re-encryption (Go SDK)
+# NDA Re-Encryption SDK (Go)
 
-Go implementation of the Umbral proxy re-encryption workflow. The package
+Go implementation of an NDA-focused proxy re-encryption workflow. The package
 allows you to:
 
 - Encrypt data for a data owner (Alice) and create a **capsule**.
@@ -45,19 +45,24 @@ func main() {
 		log.Fatalf("generate bob keys: %v", err)
 	}
 
-	message := []byte("Proxy re-encryption with Umbral in Go")
+	aliceSKHex := utils.PrivateKeyToHexString(aliceSK)
+	alicePKHex := utils.PublicKeyToCompressedKey(alicePK)
+	bobSKHex := utils.PrivateKeyToHexString(bobSK)
+	bobPKHex := utils.PublicKeyToCompressedKey(bobPK)
 
-	capsule, ciphertext, err := pre.Encrypt(message, alicePK)
+	message := []byte("NDA Re-Encryption in Go")
+
+	capsule, ciphertext, err := pre.Encrypt(message, alicePKHex)
 	if err != nil {
 		log.Fatalf("encrypt: %v", err)
 	}
 
-	shareDataKey, err := pre.CreateShareDataKey(aliceSK, bobPK, capsule)
+	shareDataKey, err := pre.CreateShareDataKey(aliceSKHex, bobPKHex, capsule)
 	if err != nil {
 		log.Fatalf("create share data key: %v", err)
 	}
 
-	plaintext, err := pre.Decrypt(bobSK, shareDataKey, ciphertext)
+	plaintext, err := pre.Decrypt(bobSKHex, shareDataKey, ciphertext)
 	if err != nil {
 		log.Fatalf("decrypt: %v", err)
 	}
@@ -74,25 +79,26 @@ go run ./examples/basic
 
 ## Streaming support
 
-Package `pre` also exposes `EncryptStream` / `DecryptStream` for large files.
-These helpers break data into fixed-size chunks, encrypt each chunk with AES-GCM
-using unique nonces, and store chunk metadata inside the capsule. The companion
-example `examples/stream/main.go` demonstrates the full flow:
+Package `pre` also exposes `EncryptStream` / `DecryptStream` for large files. These helpers break data into fixed-size chunks, encrypt each chunk with AES-GCM using unique nonces, and store chunk metadata inside the capsule. The companion example `examples/stream/main.go` demonstrates the full flow (it follows the same key conversion pattern shown above):
 
 ```go
+aliceSKHex := utils.PrivateKeyToHexString(aliceSK)
+alicePKHex := utils.PublicKeyToCompressedKey(alicePK)
+bobSKHex := utils.PrivateKeyToHexString(bobSK)
+bobPKHex := utils.PublicKeyToCompressedKey(bobPK)
+
 input := bytes.NewReader(bigData)
 var cipher bytes.Buffer
 
 chunkSize := uint32(64 * 1024)
-capsule, err := pre.EncryptStream(input, &cipher, alicePK, chunkSize)
-shareKey, err := pre.CreateShareDataKey(aliceSK, bobPK, capsule)
+capsule, err := pre.EncryptStream(input, &cipher, alicePKHex, chunkSize)
+shareKey, err := pre.CreateShareDataKey(aliceSKHex, bobPKHex, capsule)
 
 var plain bytes.Buffer
-err = pre.DecryptStream(bytes.NewReader(cipher.Bytes()), &plain, bobSK, shareKey)
+err = pre.DecryptStream(bytes.NewReader(cipher.Bytes()), &plain, bobSKHex, shareKey)
 ```
 
-`chunkSize` defines the frame size used during encryption. Capsule metadata keeps
-track of the chunk size so that the decryptor can reconstruct the stream.
+`chunkSize` defines the frame size used during encryption. Capsule metadata keeps track of the chunk size so that the decryptor can reconstruct the stream.
 
 ## Testing
 
@@ -101,4 +107,6 @@ go test ./...
 ```
 
 ## License
+
+GPL-3.0
 
