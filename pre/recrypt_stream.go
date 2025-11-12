@@ -13,16 +13,27 @@ import (
 
 // EncryptStream encrypts the stream data using the owner public key and returns the capsule bytes.
 // pubKey is the compressed public key of the owner.
-func EncryptStream(inputReader io.Reader, outputWriter io.Writer, pubKey string, chunkSize uint32) ([]byte, error) {
+func EncryptStream(inputReader io.Reader, outputWriter io.Writer, pubKey string, chunkSize uint32) error {
 	// 1. generate aes key
 	pKey, err := utils.PublicCompressedKeyToKey(pubKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	capsule, keyBytes, err := generateAESKey(pKey, chunkSize)
 	if err != nil {
-		return nil, err
+		return err
+	}
+
+	capsuleBytes, err := encodeCapsule(capsule)
+	if err != nil {
+		return err
+	}
+
+	// write the capsule bytes to the output writer.
+	_, err = outputWriter.Write(capsuleBytes)
+	if err != nil {
+		return err
 	}
 
 	var (
@@ -49,7 +60,7 @@ func EncryptStream(inputReader io.Reader, outputWriter io.Writer, pubKey string,
 				break
 			}
 
-			return nil, err
+			return err
 		}
 
 		// if the last chunk is less than chunk size, set the chunk size final to the actual size.
@@ -59,20 +70,21 @@ func EncryptStream(inputReader io.Reader, outputWriter io.Writer, pubKey string,
 
 		cipherText, err := gmcEncrypt(buf, aesKey, nonceChunkBytes, nil)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		_, err = outputWriter.Write(cipherText)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	// 3. return the capsule
-	return encodeCapsule(capsule)
+	return nil
 }
 
 // DecryptStream decrypts the stream data using the receiver private key and the share data key and returns the plain text.
+// inputReader ignore 185 bytes of capsule bytes.
 func DecryptStream(inputReader io.Reader, outputWriter io.Writer, recieverPrvKey string, shareDataKey []byte) error {
 	// 1. decrypt share data key to get aes key.
 	prvKey, err := utils.PrivateKeyStrToKey(recieverPrvKey)
@@ -150,6 +162,7 @@ func DecryptStream(inputReader io.Reader, outputWriter io.Writer, recieverPrvKey
 }
 
 // DecryptStreamByOwner decrypts the stream data using the owner private key and the original capsule and returns the plain text.
+// inputReader ignore 185 bytes of capsule bytes.
 func DecryptStreamByOwner(inputReader io.Reader, outputWriter io.Writer, ownerPrvKey string, capsule []byte) error {
 	// 1. decrypt original capsule to get aes key.
 	prvKey, err := utils.PrivateKeyStrToKey(ownerPrvKey)
