@@ -27,14 +27,18 @@ func TestE2EStream(t *testing.T) {
 	encryptWriter := bytes.NewBuffer(nil)
 
 	// Step 1: Alice encrypts the stream
-	capsule, err := EncryptStream(encryptReader, encryptWriter, utils.PublicKeyToCompressedKey(alicePubKey), 2)
+	err = EncryptStream(encryptReader, encryptWriter, utils.PublicKeyToCompressedKey(alicePubKey), 2)
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
-	t.Logf("Encryption successful. Capsule size: %d bytes", len(capsule))
+
+	capsuleBytes := make([]byte, 185)
+	if _, err := encryptWriter.Read(capsuleBytes); err != nil {
+		t.Fatalf("read capsule bytes: %v", err)
+	}
 
 	// Step 2: Alice creates a re-encryption key for Bob
-	shareDataKey, err := CreateShareDataKey(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsule)
+	shareDataKey, err := CreateShareDataKey(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsuleBytes)
 	if err != nil {
 		t.Fatalf("Failed to create share data key: %v", err)
 	}
@@ -53,14 +57,19 @@ func TestE2EStream(t *testing.T) {
 	encryptOwnerWriter := bytes.NewBuffer(nil)
 
 	// Step 4: Alice encrypts the stream
-	capsuleOwner, err := EncryptStream(encryptOwnerReader, encryptOwnerWriter, utils.PublicKeyToCompressedKey(alicePubKey), 2)
+	err = EncryptStream(encryptOwnerReader, encryptOwnerWriter, utils.PublicKeyToCompressedKey(alicePubKey), 2)
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
 
+	capsuleOwnerBytes := make([]byte, 185)
+	if _, err := encryptOwnerWriter.Read(capsuleOwnerBytes); err != nil {
+		t.Fatalf("read capsule owner bytes: %v", err)
+	}
+
 	// Step 5: owner decrypts the stream
 	decryptWriterOwner := bytes.NewBuffer(nil)
-	err = DecryptStreamByOwner(encryptOwnerWriter, decryptWriterOwner, utils.PrivateKeyToHexString(alicePrivKey), capsuleOwner)
+	err = DecryptStreamByOwner(encryptOwnerWriter, decryptWriterOwner, utils.PrivateKeyToHexString(alicePrivKey), capsuleOwnerBytes)
 	if err != nil {
 		t.Fatalf("Decryption Owner failed: %v", err)
 	}
