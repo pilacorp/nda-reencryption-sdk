@@ -58,7 +58,7 @@ func main() {
 	}
 
 	var plainBuf bytes.Buffer
-	if err := bobDecryptorFromHex.DecryptStream(context.Background(), bytes.NewReader(cipherBuf.Bytes()), &plainBuf, shareDataKey); err != nil {
+	if err := bobDecryptorFromHex.DecryptStream(context.Background(), bytes.NewReader(cipherBuf.Bytes()), &plainBuf); err != nil {
 		log.Fatalf("decrypt stream: %v", err)
 	}
 

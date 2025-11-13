@@ -65,7 +65,7 @@ func TestE2EStream(t *testing.T) {
 
 	// Step 3: Bob decrypts the stream
 	decryptWriter := bytes.NewBuffer(nil)
-	err = bodDecryptorFromHex.DecryptStream(context.Background(), encryptWriter, decryptWriter, shareDataKey)
+	err = bodDecryptorFromHex.DecryptStream(context.Background(), encryptWriter, decryptWriter)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}
