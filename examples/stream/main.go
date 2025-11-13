@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 
@@ -26,24 +27,28 @@ func main() {
 	var cipherBuf bytes.Buffer
 	chunkSize := uint32(64 * 1024) // 64 KiB frames
 
-	err = pre.EncryptStream(inputReader, &cipherBuf, utils.PublicKeyToCompressedKey(alicePK), chunkSize)
+	aliceEncryptor, capsule, err := pre.NewEncryptor(utils.PublicKeyToCompressedKey(alicePK), int(chunkSize))
+	if err != nil {
+		log.Fatalf("create alice encryptor: %v", err)
+	}
+
+	err = aliceEncryptor.EncryptStream(context.Background(), inputReader, &cipherBuf)
 	if err != nil {
 		log.Fatalf("encrypt stream: %v", err)
 	}
 
-	capsuleBytes := make([]byte, 250)
-
-	if _, err := cipherBuf.Read(capsuleBytes); err != nil {
-		log.Fatalf("read capsule bytes: %v", err)
-	}
-
-	shareDataKey, err := pre.CreateShareDataKey(utils.PrivateKeyToHexString(aliceSK), utils.PublicKeyToCompressedKey(bobPK), capsuleBytes)
+	shareDataKey, err := pre.CreateShareDataKey(utils.PrivateKeyToHexString(aliceSK), utils.PublicKeyToCompressedKey(bobPK), capsule)
 	if err != nil {
 		log.Fatalf("create share data key: %v", err)
 	}
 
+	bobDecryptor, err := pre.NewDecryptor(utils.PrivateKeyToHexString(bobSK), shareDataKey)
+	if err != nil {
+		log.Fatalf("create bob decryptor: %v", err)
+	}
+
 	var plainBuf bytes.Buffer
-	if err := pre.DecryptStream(bytes.NewReader(cipherBuf.Bytes()), &plainBuf, utils.PrivateKeyToHexString(bobSK), shareDataKey); err != nil {
+	if err := bobDecryptor.DecryptStream(context.Background(), bytes.NewReader(cipherBuf.Bytes()), &plainBuf, utils.PrivateKeyToHexString(bobSK), shareDataKey); err != nil {
 		log.Fatalf("decrypt stream: %v", err)
 	}
 

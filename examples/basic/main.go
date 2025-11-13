@@ -22,8 +22,13 @@ func main() {
 
 	message := []byte("NDA re-encryption with NDA SDK in Go")
 
+	aliceEncryptor, capsule, err := pre.NewEncryptor(utils.PublicKeyToCompressedKey(alicePK), 0)
+	if err != nil {
+		log.Fatalf("create alice encryptor: %v", err)
+	}
+
 	// 1) Alice encrypts for herself. The result is the ciphertext and a capsule.
-	capsule, ciphertext, err := pre.Encrypt(message, utils.PublicKeyToCompressedKey(alicePK))
+	ciphertext, err := aliceEncryptor.Encrypt(message)
 	if err != nil {
 		log.Fatalf("encrypt: %v", err)
 	}
@@ -34,8 +39,13 @@ func main() {
 		log.Fatalf("create share data key: %v", err)
 	}
 
+	bobDecryptor, err := pre.NewDecryptor(utils.PrivateKeyToHexString(bobSK), shareDataKey)
+	if err != nil {
+		log.Fatalf("create bob decryptor: %v", err)
+	}
+
 	// 3) Bob uses the share key plus his private key to decrypt.
-	plaintext, err := pre.Decrypt(utils.PrivateKeyToHexString(bobSK), shareDataKey, ciphertext)
+	plaintext, err := bobDecryptor.Decrypt(ciphertext)
 	if err != nil {
 		log.Fatalf("decrypt: %v", err)
 	}

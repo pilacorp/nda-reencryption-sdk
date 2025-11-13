@@ -2,6 +2,7 @@ package pre
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/pilacorp/nda-reencryption-sdk/utils"
@@ -26,27 +27,33 @@ func TestE2EStream(t *testing.T) {
 	encryptReader := bytes.NewReader(testData)
 	encryptWriter := bytes.NewBuffer(nil)
 
+	aliceEncryptor, capsule, err := NewEncryptor(utils.PublicKeyToCompressedKey(alicePubKey), 2)
+	if err != nil {
+		t.Fatalf("Failed to create Alice's encryptor: %v", err)
+	}
+
 	// Step 1: Alice encrypts the stream
-	err = EncryptStream(encryptReader, encryptWriter, utils.PublicKeyToCompressedKey(alicePubKey), 2)
+	err = aliceEncryptor.EncryptStream(context.Background(), encryptReader, encryptWriter)
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
 
-	capsuleBytes := make([]byte, 185)
-	if _, err := encryptWriter.Read(capsuleBytes); err != nil {
-		t.Fatalf("read capsule bytes: %v", err)
-	}
-
 	// Step 2: Alice creates a re-encryption key for Bob
-	shareDataKey, err := CreateShareDataKey(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsuleBytes)
+	shareDataKey, err := CreateShareDataKey(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsule)
 	if err != nil {
 		t.Fatalf("Failed to create share data key: %v", err)
 	}
+
 	t.Logf("Share data key created successfully. Size: %d bytes", len(shareDataKey))
+
+	bodDecryptor, err := NewDecryptor(utils.PrivateKeyToHexString(bobPrivKey), shareDataKey)
+	if err != nil {
+		t.Fatalf("Failed to create Bob's decryptor: %v", err)
+	}
 
 	// Step 3: Bob decrypts the stream
 	decryptWriter := bytes.NewBuffer(nil)
-	err = DecryptStream(encryptWriter, decryptWriter, utils.PrivateKeyToHexString(bobPrivKey), shareDataKey)
+	err = bodDecryptor.DecryptStream(context.Background(), encryptWriter, decryptWriter, utils.PrivateKeyToHexString(bobPrivKey), shareDataKey)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}
@@ -56,20 +63,25 @@ func TestE2EStream(t *testing.T) {
 	encryptOwnerReader := bytes.NewReader(testData)
 	encryptOwnerWriter := bytes.NewBuffer(nil)
 
+	newAliceEncryptor, capsule, err := NewEncryptor(utils.PublicKeyToCompressedKey(alicePubKey), 2)
+	if err != nil {
+		t.Fatalf("Failed to create Alice's encryptor: %v", err)
+	}
+
 	// Step 4: Alice encrypts the stream
-	err = EncryptStream(encryptOwnerReader, encryptOwnerWriter, utils.PublicKeyToCompressedKey(alicePubKey), 2)
+	err = newAliceEncryptor.EncryptStream(context.Background(), encryptOwnerReader, encryptOwnerWriter)
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
 
-	capsuleOwnerBytes := make([]byte, 185)
-	if _, err := encryptOwnerWriter.Read(capsuleOwnerBytes); err != nil {
-		t.Fatalf("read capsule owner bytes: %v", err)
+	aliceDecryptor, err := NewDecryptorByOwner(utils.PrivateKeyToHexString(alicePrivKey), capsule)
+	if err != nil {
+		t.Fatalf("Failed to create Alice's decryptor: %v", err)
 	}
 
 	// Step 5: owner decrypts the stream
 	decryptWriterOwner := bytes.NewBuffer(nil)
-	err = DecryptStreamByOwner(encryptOwnerWriter, decryptWriterOwner, utils.PrivateKeyToHexString(alicePrivKey), capsuleOwnerBytes)
+	err = aliceDecryptor.DecryptStreamByOwner(context.Background(), encryptOwnerWriter, decryptWriterOwner)
 	if err != nil {
 		t.Fatalf("Decryption Owner failed: %v", err)
 	}

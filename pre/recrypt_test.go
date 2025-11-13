@@ -23,8 +23,13 @@ func TestE2E(t *testing.T) {
 	testData := []byte("Hello, World! This is a test message for proxy re-encryption. Hello, World! This is a test message for proxy re-encryption.  Hello, World! This is a test message for proxy re-encryption. ")
 	t.Logf("Original data: %s", string(testData))
 
+	aliceEncryptor, capsule, err := NewEncryptor(utils.PublicKeyToCompressedKey(alicePubKey), 0)
+	if err != nil {
+		t.Fatalf("Failed to create Alice's encryptor: %v", err)
+	}
+
 	// Step 1: Alice encrypts data for herself
-	capsule, cipherText, err := Encrypt(testData, utils.PublicKeyToCompressedKey(alicePubKey))
+	cipherText, err := aliceEncryptor.Encrypt(testData)
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
@@ -37,14 +42,24 @@ func TestE2E(t *testing.T) {
 	}
 	t.Logf("Share data key created successfully. Size: %d bytes", len(shareDataKey))
 
+	bobDecryptor, err := NewDecryptor(utils.PrivateKeyToHexString(bobPrivKey), shareDataKey)
+	if err != nil {
+		t.Fatalf("Failed to create Bob's decryptor: %v", err)
+	}
+
 	// Step 3: Bob decrypts the data using the share data key
-	decryptedData, err := Decrypt(utils.PrivateKeyToHexString(bobPrivKey), shareDataKey, cipherText)
+	decryptedData, err := bobDecryptor.Decrypt(cipherText)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}
 
+	aliceDecryptor, err := NewDecryptorByOwner(utils.PrivateKeyToHexString(alicePrivKey), capsule)
+	if err != nil {
+		t.Fatalf("Failed to create Alice's decryptor: %v", err)
+	}
+
 	// Step 4: owner decrypts the data using the original capsule
-	decryptedOwnerData, err := DecryptByOwner(utils.PrivateKeyToHexString(alicePrivKey), capsule, cipherText)
+	decryptedOwnerData, err := aliceDecryptor.DecryptByOwner(cipherText)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}
