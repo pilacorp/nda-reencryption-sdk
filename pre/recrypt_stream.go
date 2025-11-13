@@ -75,7 +75,7 @@ func (enc *Encryptor) EncryptStream(ctx context.Context, in io.Reader, out io.Wr
 
 // DecryptStream decrypts the stream data using the receiver private key and the share data key and returns the plain text.
 // inputReader ignore 185 bytes of capsule bytes.
-func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writer, shareDataKey []byte) error {
+func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writer) error {
 	if d.chunkSize == 0 {
 		return fmt.Errorf("chunk size is not set")
 	}
