@@ -44,8 +44,18 @@ func main() {
 		log.Fatalf("create bob decryptor: %v", err)
 	}
 
+	hex, err := bobDecryptor.Hex()
+	if err != nil {
+		log.Fatalf("Failed to get Bob's decryptor hex: %v", err)
+	}
+
+	bobDecryptorFromHex, err := pre.NewDecryptorFromHex(hex)
+	if err != nil {
+		log.Fatalf("Failed to create Bob's decryptor from hex: %v", err)
+	}
+
 	// 3) Bob uses the share key plus his private key to decrypt.
-	plaintext, err := bobDecryptor.Decrypt(ciphertext)
+	plaintext, err := bobDecryptorFromHex.Decrypt(ciphertext)
 	if err != nil {
 		log.Fatalf("decrypt: %v", err)
 	}

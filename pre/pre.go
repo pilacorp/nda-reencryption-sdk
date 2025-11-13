@@ -14,15 +14,15 @@ import (
 )
 
 type Encryptor struct {
-	aesKey    string
+	aesKey    [32]byte
 	baseNonce [12]byte
-	chunkSize int
+	chunkSize uint32
 }
 
 type Decryptor struct {
-	aesKey    string
+	aesKey    [32]byte
 	baseNonce [12]byte
-	chunkSize int
+	chunkSize uint32
 }
 
 type capsule struct {
@@ -33,7 +33,47 @@ type capsule struct {
 	Version   uint8
 }
 
-func NewEncryptor(pubKey string, chunkSize int) (*Encryptor, []byte, error) {
+func (d *Decryptor) Hex() (string, error) {
+	buf := new(bytes.Buffer)
+	order := binary.LittleEndian
+
+	if err := binary.Write(buf, order, d.aesKey); err != nil {
+		return "", fmt.Errorf("write aesKey: %w", err)
+	}
+	if err := binary.Write(buf, order, d.baseNonce); err != nil {
+		return "", fmt.Errorf("write baseNonce: %w", err)
+	}
+	if err := binary.Write(buf, order, d.chunkSize); err != nil {
+		return "", fmt.Errorf("write chunkSize: %w", err)
+	}
+
+	return hex.EncodeToString(buf.Bytes()), nil
+}
+
+func NewDecryptorFromHex(hexString string) (*Decryptor, error) {
+	binaryData, err := hex.DecodeString(hexString)
+	if err != nil {
+		return nil, fmt.Errorf("lỗi hex.DecodeString: %w", err)
+	}
+
+	buf := bytes.NewReader(binaryData)
+	var d Decryptor
+	order := binary.LittleEndian
+
+	if err := binary.Read(buf, order, &d.aesKey); err != nil {
+		return nil, fmt.Errorf("lỗi đọc AesKey: %w", err)
+	}
+	if err := binary.Read(buf, order, &d.baseNonce); err != nil {
+		return nil, fmt.Errorf("lỗi đọc BaseNonce: %w", err)
+	}
+	if err := binary.Read(buf, order, &d.chunkSize); err != nil {
+		return nil, fmt.Errorf("lỗi đọc ChunkSize: %w", err)
+	}
+
+	return &d, nil
+}
+
+func NewEncryptor(pubKey string, chunkSize uint32) (*Encryptor, []byte, error) {
 	pKey, err := utils.PublicCompressedKeyToKey(pubKey)
 	if err != nil {
 		return nil, nil, err
@@ -51,7 +91,7 @@ func NewEncryptor(pubKey string, chunkSize int) (*Encryptor, []byte, error) {
 
 	// TODO: derive the aes key and base nonce by HKDF.
 	enc := &Encryptor{
-		aesKey:    hex.EncodeToString(keyBytes)[:32],
+		aesKey:    [32]byte(keyBytes[:32]),
 		baseNonce: [12]byte(keyBytes[:12]),
 		chunkSize: chunkSize,
 	}
@@ -85,9 +125,9 @@ func NewDecryptor(recieverPrvKey string, shareDataKey []byte) (*Decryptor, error
 	}
 
 	return &Decryptor{
-		aesKey:    hex.EncodeToString(keyBytes)[:32],
+		aesKey:    [32]byte(keyBytes[:32]),
 		baseNonce: [12]byte(keyBytes[:12]),
-		chunkSize: int(cap.ChunkSize),
+		chunkSize: (cap.ChunkSize),
 	}, nil
 }
 
@@ -112,10 +152,47 @@ func NewDecryptorByOwner(ownerPrvKey string, capsule []byte) (*Decryptor, error)
 	}
 
 	return &Decryptor{
-		aesKey:    hex.EncodeToString(keyBytes)[:32],
+		aesKey:    [32]byte(keyBytes[:32]),
 		baseNonce: [12]byte(keyBytes[:12]),
-		chunkSize: int(cap.ChunkSize),
+		chunkSize: cap.ChunkSize,
 	}, nil
+}
+
+// CreateShareDataKey creates a share data key from the owner private key and the receiver public key for the receiver.
+// share data key used to reciever can direct decrypt data .
+// receiverPubKey is the compressed public key of the receiver.
+func CreateShareDataKey(ownerPrvKey, recieverPubKey string, capsule []byte) ([]byte, error) {
+	prvKey, err := utils.PrivateKeyStrToKey(ownerPrvKey)
+	if err != nil {
+		return nil, err
+	}
+
+	pubKey, err := utils.PublicCompressedKeyToKey(recieverPubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	r, p, err := rekeyGenerate(prvKey, pubKey)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	cap, err := decodeCapsule(capsule)
+	if err != nil {
+		return nil, err
+	}
+
+	reCap, err := reEncryption(r, cap)
+	if err != nil {
+		return nil, err
+	}
+
+	reCapBytes, err := encodeCapsule(reCap)
+	if err != nil {
+		return nil, err
+	}
+
+	return utils.ConcatBytes(reCapBytes, curve.PointToBytes(p)), nil
 }
 
 func encodeRekey(r *big.Int, p *ecdsa.PublicKey) ([]byte, error) {
@@ -294,43 +371,6 @@ func readBig(r *bytes.Reader) (*big.Int, error) {
 	}
 
 	return new(big.Int).SetBytes(b), nil
-}
-
-// CreateShareDataKey creates a share data key from the owner private key and the receiver public key for the receiver.
-// share data key used to reciever can direct decrypt data .
-// receiverPubKey is the compressed public key of the receiver.
-func CreateShareDataKey(ownerPrvKey, recieverPubKey string, capsule []byte) ([]byte, error) {
-	prvKey, err := utils.PrivateKeyStrToKey(ownerPrvKey)
-	if err != nil {
-		return nil, err
-	}
-
-	pubKey, err := utils.PublicCompressedKeyToKey(recieverPubKey)
-	if err != nil {
-		return nil, err
-	}
-
-	r, p, err := rekeyGenerate(prvKey, pubKey)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	cap, err := decodeCapsule(capsule)
-	if err != nil {
-		return nil, err
-	}
-
-	reCap, err := reEncryption(r, cap)
-	if err != nil {
-		return nil, err
-	}
-
-	reCapBytes, err := encodeCapsule(reCap)
-	if err != nil {
-		return nil, err
-	}
-
-	return utils.ConcatBytes(reCapBytes, curve.PointToBytes(p)), nil
 }
 
 func decryptAESKey(prvKey *ecdsa.PrivateKey, cap *capsule, pointX *ecdsa.PublicKey) (keyBytes []byte, err error) {

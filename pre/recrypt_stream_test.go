@@ -51,9 +51,21 @@ func TestE2EStream(t *testing.T) {
 		t.Fatalf("Failed to create Bob's decryptor: %v", err)
 	}
 
+	hex, err := bodDecryptor.Hex()
+	if err != nil {
+		t.Fatalf("Failed to get Bob's decryptor hex: %v", err)
+	}
+
+	t.Logf("Bob's decryptor hex: %s", hex)
+
+	bodDecryptorFromHex, err := NewDecryptorFromHex(hex)
+	if err != nil {
+		t.Fatalf("Failed to create Bob's decryptor from hex: %v", err)
+	}
+
 	// Step 3: Bob decrypts the stream
 	decryptWriter := bytes.NewBuffer(nil)
-	err = bodDecryptor.DecryptStream(context.Background(), encryptWriter, decryptWriter, utils.PrivateKeyToHexString(bobPrivKey), shareDataKey)
+	err = bodDecryptorFromHex.DecryptStream(context.Background(), encryptWriter, decryptWriter, shareDataKey)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}
@@ -79,9 +91,21 @@ func TestE2EStream(t *testing.T) {
 		t.Fatalf("Failed to create Alice's decryptor: %v", err)
 	}
 
+	hex, err = aliceDecryptor.Hex()
+	if err != nil {
+		t.Fatalf("Failed to get Alice's decryptor hex: %v", err)
+	}
+
+	t.Logf("Alice's decryptor hex: %s", hex)
+
+	aliceDecryptorFromHex, err := NewDecryptorFromHex(hex)
+	if err != nil {
+		t.Fatalf("Failed to create Alice's decryptor from hex: %v", err)
+	}
+
 	// Step 5: owner decrypts the stream
 	decryptWriterOwner := bytes.NewBuffer(nil)
-	err = aliceDecryptor.DecryptStreamByOwner(context.Background(), encryptOwnerWriter, decryptWriterOwner)
+	err = aliceDecryptorFromHex.DecryptStreamByOwner(context.Background(), encryptOwnerWriter, decryptWriterOwner)
 	if err != nil {
 		t.Fatalf("Decryption Owner failed: %v", err)
 	}

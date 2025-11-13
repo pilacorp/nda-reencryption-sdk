@@ -47,8 +47,29 @@ func TestE2E(t *testing.T) {
 		t.Fatalf("Failed to create Bob's decryptor: %v", err)
 	}
 
+	hex, err := bobDecryptor.Hex()
+	if err != nil {
+		t.Fatalf("Failed to get Bob's decryptor hex: %v", err)
+	}
+
+	t.Logf("Bob's decryptor hex: %s", hex)
+
+	bobDecryptorFromHex, err := NewDecryptorFromHex(hex)
+	if err != nil {
+		t.Fatalf("Failed to create Bob's decryptor from hex: %v", err)
+	}
+
+	hexFromBobDecryptorFromHex, err := bobDecryptorFromHex.Hex()
+	if err != nil {
+		t.Fatalf("Failed to get Bob's decryptor from hex: %v", err)
+	}
+
+	if hex != hexFromBobDecryptorFromHex {
+		t.Fatalf("Bob's decryptor hex doesn't match")
+	}
+
 	// Step 3: Bob decrypts the data using the share data key
-	decryptedData, err := bobDecryptor.Decrypt(cipherText)
+	decryptedData, err := bobDecryptorFromHex.Decrypt(cipherText)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}
@@ -58,8 +79,20 @@ func TestE2E(t *testing.T) {
 		t.Fatalf("Failed to create Alice's decryptor: %v", err)
 	}
 
+	hex, err = aliceDecryptor.Hex()
+	if err != nil {
+		t.Fatalf("Failed to get Alice's decryptor hex: %v", err)
+	}
+
+	t.Logf("Alice's decryptor hex: %s", hex)
+
+	aliceDecryptorFromHex, err := NewDecryptorFromHex(hex)
+	if err != nil {
+		t.Fatalf("Failed to create Alice's decryptor from hex: %v", err)
+	}
+
 	// Step 4: owner decrypts the data using the original capsule
-	decryptedOwnerData, err := aliceDecryptor.DecryptByOwner(cipherText)
+	decryptedOwnerData, err := aliceDecryptorFromHex.DecryptByOwner(cipherText)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}

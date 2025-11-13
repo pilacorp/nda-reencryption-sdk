@@ -18,7 +18,7 @@ func (enc *Encryptor) EncryptStream(ctx context.Context, in io.Reader, out io.Wr
 	}
 
 	// initialize the aes cipher.
-	block, err := aes.NewCipher([]byte(enc.aesKey))
+	block, err := aes.NewCipher(enc.aesKey[:])
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func (enc *Encryptor) EncryptStream(ctx context.Context, in io.Reader, out io.Wr
 		nonceIdx  = 0
 		baseNonce = enc.baseNonce[:8]
 		// overhead is 16 bytes.
-		dst = make([]byte, 0, enc.chunkSize+aesgcm.Overhead())
+		dst = make([]byte, 0, int(enc.chunkSize)+aesgcm.Overhead())
 	)
 
 	// encrypt the stream.
@@ -75,13 +75,13 @@ func (enc *Encryptor) EncryptStream(ctx context.Context, in io.Reader, out io.Wr
 
 // DecryptStream decrypts the stream data using the receiver private key and the share data key and returns the plain text.
 // inputReader ignore 185 bytes of capsule bytes.
-func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writer, recieverPrvKey string, shareDataKey []byte) error {
+func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writer, shareDataKey []byte) error {
 	if d.chunkSize == 0 {
 		return fmt.Errorf("chunk size is not set")
 	}
 
 	// initialize the aes cipher.
-	block, err := aes.NewCipher([]byte(d.aesKey))
+	block, err := aes.NewCipher(d.aesKey[:])
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writ
 		nonceIdx++
 
 		// read the chunk from the reader.
-		buf := make([]byte, d.chunkSize+aesgcm.Overhead())
+		buf := make([]byte, int(d.chunkSize)+aesgcm.Overhead())
 		n, err := io.ReadFull(in, buf)
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 			if err == io.EOF {
@@ -151,7 +151,7 @@ func (d *Decryptor) DecryptStreamByOwner(ctx context.Context, in io.Reader, out 
 	}
 
 	// initialize the aes cipher.
-	block, err := aes.NewCipher([]byte(d.aesKey))
+	block, err := aes.NewCipher(d.aesKey[:])
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func (d *Decryptor) DecryptStreamByOwner(ctx context.Context, in io.Reader, out 
 		nonceIdx++
 
 		// read the chunk from the reader.
-		buf := make([]byte, d.chunkSize+aesgcm.Overhead())
+		buf := make([]byte, int(d.chunkSize)+aesgcm.Overhead())
 		n, err := io.ReadFull(in, buf)
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 			if err == io.EOF {

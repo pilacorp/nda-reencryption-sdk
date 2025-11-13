@@ -5,8 +5,8 @@ import (
 	"crypto/cipher"
 )
 
-func gmcEncrypt(plaintext []byte, key string, iv []byte, additionalData []byte) (cipherText []byte, err error) {
-	block, err := aes.NewCipher([]byte(key))
+func gmcEncrypt(plaintext []byte, key [32]byte, iv []byte, additionalData []byte) (cipherText []byte, err error) {
+	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return nil, err
 	}
@@ -21,8 +21,8 @@ func gmcEncrypt(plaintext []byte, key string, iv []byte, additionalData []byte) 
 	return cipherText, nil
 }
 
-func gcmDecrypt(cipherText []byte, key string, iv []byte, additionalData []byte) (plainText []byte, err error) {
-	block, err := aes.NewCipher([]byte(key))
+func gcmDecrypt(cipherText []byte, key [32]byte, iv []byte, additionalData []byte) (plainText []byte, err error) {
+	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return nil, err
 	}

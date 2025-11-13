@@ -27,7 +27,7 @@ func main() {
 	var cipherBuf bytes.Buffer
 	chunkSize := uint32(64 * 1024) // 64 KiB frames
 
-	aliceEncryptor, capsule, err := pre.NewEncryptor(utils.PublicKeyToCompressedKey(alicePK), int(chunkSize))
+	aliceEncryptor, capsule, err := pre.NewEncryptor(utils.PublicKeyToCompressedKey(alicePK), chunkSize)
 	if err != nil {
 		log.Fatalf("create alice encryptor: %v", err)
 	}
@@ -47,8 +47,18 @@ func main() {
 		log.Fatalf("create bob decryptor: %v", err)
 	}
 
+	hex, err := bobDecryptor.Hex()
+	if err != nil {
+		log.Fatalf("Failed to get Bob's decryptor hex: %v", err)
+	}
+
+	bobDecryptorFromHex, err := pre.NewDecryptorFromHex(hex)
+	if err != nil {
+		log.Fatalf("Failed to create Bob's decryptor from hex: %v", err)
+	}
+
 	var plainBuf bytes.Buffer
-	if err := bobDecryptor.DecryptStream(context.Background(), bytes.NewReader(cipherBuf.Bytes()), &plainBuf, utils.PrivateKeyToHexString(bobSK), shareDataKey); err != nil {
+	if err := bobDecryptorFromHex.DecryptStream(context.Background(), bytes.NewReader(cipherBuf.Bytes()), &plainBuf, shareDataKey); err != nil {
 		log.Fatalf("decrypt stream: %v", err)
 	}
 
