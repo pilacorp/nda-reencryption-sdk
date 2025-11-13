@@ -38,13 +38,13 @@ func (d *Decryptor) Hex() (string, error) {
 	order := binary.LittleEndian
 
 	if err := binary.Write(buf, order, d.aesKey); err != nil {
-		return "", fmt.Errorf("write aesKey: %w", err)
+		return "", err
 	}
 	if err := binary.Write(buf, order, d.baseNonce); err != nil {
-		return "", fmt.Errorf("write baseNonce: %w", err)
+		return "", err
 	}
 	if err := binary.Write(buf, order, d.chunkSize); err != nil {
-		return "", fmt.Errorf("write chunkSize: %w", err)
+		return "", err
 	}
 
 	return hex.EncodeToString(buf.Bytes()), nil
@@ -53,7 +53,7 @@ func (d *Decryptor) Hex() (string, error) {
 func NewDecryptorFromHex(hexString string) (*Decryptor, error) {
 	binaryData, err := hex.DecodeString(hexString)
 	if err != nil {
-		return nil, fmt.Errorf("lỗi hex.DecodeString: %w", err)
+		return nil, err
 	}
 
 	buf := bytes.NewReader(binaryData)
@@ -61,13 +61,13 @@ func NewDecryptorFromHex(hexString string) (*Decryptor, error) {
 	order := binary.LittleEndian
 
 	if err := binary.Read(buf, order, &d.aesKey); err != nil {
-		return nil, fmt.Errorf("lỗi đọc AesKey: %w", err)
+		return nil, err
 	}
 	if err := binary.Read(buf, order, &d.baseNonce); err != nil {
-		return nil, fmt.Errorf("lỗi đọc BaseNonce: %w", err)
+		return nil, err
 	}
 	if err := binary.Read(buf, order, &d.chunkSize); err != nil {
-		return nil, fmt.Errorf("lỗi đọc ChunkSize: %w", err)
+		return nil, err
 	}
 
 	return &d, nil
