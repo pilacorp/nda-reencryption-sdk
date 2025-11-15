@@ -105,7 +105,7 @@ func TestE2EStream(t *testing.T) {
 
 	// Step 5: owner decrypts the stream
 	decryptWriterOwner := bytes.NewBuffer(nil)
-	err = aliceDecryptorFromHex.DecryptStreamByOwner(context.Background(), encryptOwnerWriter, decryptWriterOwner)
+	err = aliceDecryptorFromHex.DecryptStream(context.Background(), encryptOwnerWriter, decryptWriterOwner)
 	if err != nil {
 		t.Fatalf("Decryption Owner failed: %v", err)
 	}

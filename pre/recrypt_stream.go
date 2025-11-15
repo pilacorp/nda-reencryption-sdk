@@ -30,11 +30,12 @@ func (enc *Encryptor) EncryptStream(ctx context.Context, in io.Reader, out io.Wr
 	}
 
 	var (
-		nonceIdx  = 0
-		baseNonce = enc.baseNonce[:8]
-		// overhead is 16 bytes.
-		dst = make([]byte, 0, int(enc.chunkSize)+aesgcm.Overhead())
+		nonceIdx = 0
+		dst      = make([]byte, 0, int(enc.chunkSize)+aesgcm.Overhead())
+		nonce    = make([]byte, 12)
 	)
+
+	copy(nonce[:8], enc.baseNonce[:8])
 
 	// encrypt the stream.
 	for {
@@ -45,9 +46,7 @@ func (enc *Encryptor) EncryptStream(ctx context.Context, in io.Reader, out io.Wr
 		}
 
 		// generate nonce for each chunk to avoid attack by same nonce.
-		nonceIdxBuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(nonceIdxBuf, uint32(nonceIdx))
-		nonceChunkBytes := append(baseNonce[:], nonceIdxBuf...)
+		binary.BigEndian.PutUint32(nonce[8:], uint32(nonceIdx))
 		nonceIdx++
 
 		// read the chunk from the reader.
@@ -62,7 +61,7 @@ func (enc *Encryptor) EncryptStream(ctx context.Context, in io.Reader, out io.Wr
 			return err
 		}
 
-		cipherText := aesgcm.Seal(dst[:0], nonceChunkBytes, buf[:n], nil)
+		cipherText := aesgcm.Seal(dst[:0], nonce, buf[:n], nil)
 
 		_, err = out.Write(cipherText)
 		if err != nil {
@@ -93,11 +92,12 @@ func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writ
 	}
 
 	var (
-		nonceIdx  = 0
-		baseNonce = d.baseNonce[:8]
-		// overhead is 16 bytes.
-		dst = make([]byte, 0, d.chunkSize)
+		nonceIdx = 0
+		dst      = make([]byte, 0, d.chunkSize)
+		nonce    = make([]byte, 12)
 	)
+
+	copy(nonce[:8], d.baseNonce[:8])
 
 	// decrypt the stream
 	for {
@@ -108,9 +108,7 @@ func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writ
 		}
 
 		// generate nonce for each chunk to avoid attack by same nonce.
-		nonceIdxBuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(nonceIdxBuf, uint32(nonceIdx))
-		nonceChunkBytes := append(baseNonce[:], nonceIdxBuf...)
+		binary.BigEndian.PutUint32(nonce[8:], uint32(nonceIdx))
 		nonceIdx++
 
 		// read the chunk from the reader.
@@ -129,71 +127,7 @@ func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writ
 			buf = buf[:n]
 		}
 
-		plainText, err := aesgcm.Open(dst[:0], nonceChunkBytes, buf[:n], nil)
-		if err != nil {
-			return err
-		}
-
-		_, err = out.Write(plainText)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// DecryptStreamByOwner decrypts the stream data using the owner private key and the original capsule and returns the plain text.
-// inputReader ignore 185 bytes of capsule bytes.
-func (d *Decryptor) DecryptStreamByOwner(ctx context.Context, in io.Reader, out io.Writer) error {
-	if d.chunkSize <= 0 {
-		return fmt.Errorf("encrypted in single mode")
-	}
-
-	// initialize the aes cipher.
-	block, err := aes.NewCipher(d.aesKey[:])
-	if err != nil {
-		return err
-	}
-
-	// initialize the aes gcm cipher.
-	aesgcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return err
-	}
-
-	var (
-		nonceIdx  = 0
-		baseNonce = d.baseNonce[:8]
-		dst       = make([]byte, 0, d.chunkSize)
-	)
-
-	// decrypt the stream
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		// generate nonce for each chunk to avoid attack by same nonce.
-		nonceIdxBuf := make([]byte, 4)
-		binary.BigEndian.PutUint32(nonceIdxBuf, uint32(nonceIdx))
-		nonceChunkBytes := append(baseNonce[:], nonceIdxBuf...)
-		nonceIdx++
-
-		// read the chunk from the reader.
-		buf := make([]byte, int(d.chunkSize)+aesgcm.Overhead())
-		n, err := io.ReadFull(in, buf)
-		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
-			if err == io.EOF {
-				break
-			}
-
-			return err
-		}
-
-		plainText, err := aesgcm.Open(dst[:0], nonceChunkBytes, buf[:n], nil)
+		plainText, err := aesgcm.Open(dst[:0], nonce, buf[:n], nil)
 		if err != nil {
 			return err
 		}
