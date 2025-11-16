@@ -36,7 +36,7 @@ func TestE2E(t *testing.T) {
 	t.Logf("Encryption successful. Capsule size: %d bytes, Cipher text size: %d bytes", len(capsule), len(cipherText))
 
 	// Step 2: Alice creates a re-encryption key for Bob
-	shareDataKey, err := CreateShareDataKey(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsule)
+	shareDataKey, err := CreateReCapsule(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsule)
 	if err != nil {
 		t.Fatalf("Failed to create share data key: %v", err)
 	}

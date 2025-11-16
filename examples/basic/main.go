@@ -34,7 +34,7 @@ func main() {
 	}
 
 	// 2) Alice derives a share key for Bob. She can send this shareDataKey to the proxy.
-	shareDataKey, err := pre.CreateShareDataKey(utils.PrivateKeyToHexString(aliceSK), utils.PublicKeyToCompressedKey(bobPK), capsule)
+	shareDataKey, err := pre.CreateReCapsule(utils.PrivateKeyToHexString(aliceSK), utils.PublicKeyToCompressedKey(bobPK), capsule)
 	if err != nil {
 		log.Fatalf("create share data key: %v", err)
 	}

@@ -37,7 +37,7 @@ func main() {
 		log.Fatalf("encrypt stream: %v", err)
 	}
 
-	shareDataKey, err := pre.CreateShareDataKey(utils.PrivateKeyToHexString(aliceSK), utils.PublicKeyToCompressedKey(bobPK), capsule)
+	shareDataKey, err := pre.CreateReCapsule(utils.PrivateKeyToHexString(aliceSK), utils.PublicKeyToCompressedKey(bobPK), capsule)
 	if err != nil {
 		log.Fatalf("create share data key: %v", err)
 	}

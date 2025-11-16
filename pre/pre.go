@@ -99,22 +99,22 @@ func NewEncryptor(pubKey string, chunkSize uint32) (*Encryptor, []byte, error) {
 	return enc, capsuleBytes, nil
 }
 
-func NewDecryptor(recieverPrvKey string, shareDataKey []byte) (*Decryptor, error) {
+func NewDecryptor(recieverPrvKey string, reCapsule []byte) (*Decryptor, error) {
 	prvKey, err := utils.PrivateKeyStrToKey(recieverPrvKey)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(shareDataKey) != 250 {
+	if len(reCapsule) != 250 {
 		return nil, fmt.Errorf("invalid share data key")
 	}
 
-	cap, err := decodeCapsule(shareDataKey[:185])
+	cap, err := decodeCapsule(reCapsule[:185])
 	if err != nil {
 		return nil, err
 	}
 
-	pubX, err := curve.BytesToPublicKey(shareDataKey[185:])
+	pubX, err := curve.BytesToPublicKey(reCapsule[185:])
 	if err != nil {
 		return nil, err
 	}
@@ -158,10 +158,8 @@ func NewDecryptorByOwner(ownerPrvKey string, capsule []byte) (*Decryptor, error)
 	}, nil
 }
 
-// CreateShareDataKey creates a share data key from the owner private key and the receiver public key for the receiver.
-// share data key used to reciever can direct decrypt data .
-// receiverPubKey is the compressed public key of the receiver.
-func CreateShareDataKey(ownerPrvKey, recieverPubKey string, capsule []byte) ([]byte, error) {
+// CreateReCapsule creates a recapsule from the owner private key and the receiver public key for the receiver.
+func CreateReCapsule(ownerPrvKey, recieverPubKey string, capsule []byte) ([]byte, error) {
 	prvKey, err := utils.PrivateKeyStrToKey(ownerPrvKey)
 	if err != nil {
 		return nil, err

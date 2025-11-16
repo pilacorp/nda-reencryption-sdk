@@ -39,7 +39,7 @@ func TestE2EStream(t *testing.T) {
 	}
 
 	// Step 2: Alice creates a re-encryption key for Bob
-	shareDataKey, err := CreateShareDataKey(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsule)
+	shareDataKey, err := CreateReCapsule(utils.PrivateKeyToHexString(alicePrivKey), utils.PublicKeyToCompressedKey(bobPubKey), capsule)
 	if err != nil {
 		t.Fatalf("Failed to create share data key: %v", err)
 	}
