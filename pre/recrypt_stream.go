@@ -33,6 +33,7 @@ func (enc *Encryptor) EncryptStream(ctx context.Context, in io.Reader, out io.Wr
 		nonceIdx = 0
 		dst      = make([]byte, 0, int(enc.chunkSize)+aesgcm.Overhead())
 		nonce    = make([]byte, 12)
+		buf      = make([]byte, enc.chunkSize)
 	)
 
 	copy(nonce[:8], enc.baseNonce[:8])
@@ -48,9 +49,6 @@ func (enc *Encryptor) EncryptStream(ctx context.Context, in io.Reader, out io.Wr
 		// generate nonce for each chunk to avoid attack by same nonce.
 		binary.BigEndian.PutUint32(nonce[8:], uint32(nonceIdx))
 		nonceIdx++
-
-		// read the chunk from the reader.
-		buf := make([]byte, enc.chunkSize)
 
 		n, err := io.ReadFull(in, buf)
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
@@ -95,6 +93,7 @@ func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writ
 		nonceIdx = 0
 		dst      = make([]byte, 0, d.chunkSize)
 		nonce    = make([]byte, 12)
+		buf      = make([]byte, int(d.chunkSize)+aesgcm.Overhead())
 	)
 
 	copy(nonce[:8], d.baseNonce[:8])
@@ -112,7 +111,6 @@ func (d *Decryptor) DecryptStream(ctx context.Context, in io.Reader, out io.Writ
 		nonceIdx++
 
 		// read the chunk from the reader.
-		buf := make([]byte, int(d.chunkSize)+aesgcm.Overhead())
 		n, err := io.ReadFull(in, buf)
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 			if err == io.EOF {
