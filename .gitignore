@@ -45,16 +45,6 @@ dist/
 *.tar.gz
 *.zip
 
-# Go module specific
-umbral-pre-cgo/lib/*mod
-!umbral-pre-cgo/lib/libumbral_pre-linux-amd64.a
-!umbral-pre-cgo/lib/libumbral_pre-darwin-amd64.a
-!umbral-pre-cgo/lib/libumbral_pre-windows-amd64.a
-
-# Environment files
-.env
-.env.local
-.env.*.local
 
 # Coverage reports
 coverage/
